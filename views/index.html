@@ -1,20 +1,30 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <title>Garfield</title>
+    <title>USB Device Info</title>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <h1>Welcome to Garfield App</h1>
-    <!-- All of the Node.js APIs are available in this renderer process. -->
-    <p>
-      You are logged in.
+    <div class="left-panel">
+      <p>Devices:</p>
+      <p>
+        <select id="device-selector" size="20">
+        </select>
+      </p>
+      <p>
+        <button id="add-device">Add Device</button>
+      </p>
+    </div>
+    <p id="device-info">
+      <em>No device selected.</em>
     </p>
+    <div id="footer">
+      <button id="connect-serial">Connect Serial</button>
+      <button id="ping-serial">Ping Serial</button>
+      <button id="disconnect-serial">Disconnect Serial</button>
+    </div>
+    <script src=""></script>
+    <script src="../dist/renderers/configuration.js"></script>
     
   </body>
-
-  <script>
-    // You can also require other files to run in this process
-    //require('./renderer.js')
-  </script>
 </html>

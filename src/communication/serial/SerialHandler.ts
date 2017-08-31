@@ -1,33 +1,33 @@
 
 import { SerialMessage } from './SerialMessage'
 
-
 const serial = require('serialport')
-require('./serial_handler.js');
 
-var connect_serial = document.getElementById('connect-serial');
-var disconnect_serial = document.getElementById('disconnect-serial');
-var ping_serial = document.getElementById('ping-serial');
-
-var connection_id;
+let connection_id :number;
 var message_buffer = "";
 
 var message_map = new Map();
 
+export class Serial {
+    
+    public static connect(){
 
-// ###################################
-// ######## SERIAL HANDLER ###########
-// ###################################
+    }
 
-connect_serial.addEventListener('click', connect);
-disconnect_serial.addEventListener('click', disconnect);
-ping_serial.addEventListener('click', ping);
+    public static disconnect(){
 
-function uploadBinary() {
+    }
 
-    // Tady bude náhrátí souboru přes USB
+    public static send(){
+
+    }
+
+    public static ping(){
+
+    }
 }
 
+/*
 // Tady přijmu odpověď
 chrome.serial.onReceive.addListener(function (data) {
     console.log("Message received - connectionId: " + data.connectionId + " data: " + JSON.stringify(data.data));
@@ -66,11 +66,11 @@ function onMessage(connectionId, message) {
     }
 }
 
-function send(message) {
+function send(message :string) :void {
     send(connection_id, message);
 }
 
-function send(connectionId, msg) {
+function send(connectionId :number, msg :string) :void {
 
     console.log("Sending message = " + msg);
 
@@ -174,3 +174,4 @@ function ping() {
         send("ping");
     }
 }
+*/

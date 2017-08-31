@@ -6,6 +6,12 @@ import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger'
 
 const request = require('request')
 const {ipcRenderer} = require('electron')
+const serial = require('serialport')
+
+serial.list((err, ports) => {
+
+  console.log('ports', ports);
+})
 
 const form :HTMLElement = document.getElementById('login')
 

@@ -63,13 +63,13 @@ try {
 Logger.info('Config:', configManager.config)
 
 function createWindow () {
-
+/*
   let devices = usb.getDeviceList()
 
   for (var i = 0; i < devices.length; ++i) {
     Logger.info(JSON.stringify(devices[i]))
   }
-
+*/
   Logger.warn("Creating window")
 
   // Create the browser window.
@@ -82,7 +82,7 @@ function createWindow () {
   if (authToken) {
 
     mainWindow.loadURL(url.format({
-      pathname: path.join(__dirname, 'views/index.html'),
+      pathname: path.join(__dirname, '../views/index.html'),
       protocol: 'file:',
       slashes: true
     }))
@@ -90,7 +90,7 @@ function createWindow () {
   } else {
 
     mainWindow.loadURL(url.format({
-      pathname: path.join(__dirname, 'views/login.html'),
+      pathname: path.join(__dirname, '../views/login.html'),
       protocol: 'file:',
       slashes: true
     }))
@@ -140,7 +140,7 @@ ipcMain.on('login', (event, token) => {
   Logger.warn(authToken)
 
   mainWindow.loadURL(url.format({
-      pathname: path.join(__dirname, 'views/index.html'),
+      pathname: path.join(__dirname, '../views/index.html'),
       protocol: 'file:',
       slashes: true
     }))
