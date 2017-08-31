@@ -1,0 +1,12 @@
+{
+    "tyrionHost": "localhost:9000",
+    "tyrionSecured": false,
+    "tyrionReconnectTimeout": 10000,
+    "loggers": {
+        "default": {
+            "level": "trace",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        }
+    }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "garfield",
+  "version": "1.0.0",
+  "description": "Desktop Garfield application for testing and firts setup of hardware.",
+  "main": "dist/main.js",
+  "scripts": {
+  	"install": ".\\node_modules\\.bin\\electron-rebuild.cmd",
+    "start": "electron .",
+    "build": "rimraf dist && tsc",
+    "build-start": "npm run build && npm start"
+  },
+  "repository": "",
+  "keywords": [
+    "garfield"
+  ],
+  "author": "Alexandr Tylš",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron-rebuild": "^1.6.0"
+  },
+  "dependencies": {
+    "electron": "~1.7.5",
+    "logger": "git+ssh://git@github.com:ByzanceIoT/js-logger.git#v1.2.1",
+    "request": "^2.81.0",
+    "typescript": "2.4.2",
+    "usb": "git+ssh://git@github.com:tessel/node-usb.git#1.3.0",
+    "serialport": "5.0.0"
+  }
+}
