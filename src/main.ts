@@ -63,17 +63,16 @@ try {
 Logger.info('Config:', configManager.config)
 
 function createWindow () {
-/*
-  let devices = usb.getDeviceList()
 
-  for (var i = 0; i < devices.length; ++i) {
-    Logger.info(JSON.stringify(devices[i]))
-  }
-*/
   Logger.warn("Creating window")
 
   // Create the browser window.
-  mainWindow = new BrowserWindow({width: 800, height: 600})
+  mainWindow = new BrowserWindow({show: false})
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.maximize()
+    mainWindow.show()
+  })
 
   Logger.warn("New browser window")
 
@@ -98,7 +97,7 @@ function createWindow () {
   
 
   // Open the DevTools.
-  // mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
@@ -145,6 +144,33 @@ ipcMain.on('login', (event, token) => {
       slashes: true
     }))
   
+})
+
+ipcMain.on('window', (event, window :string) => {
+
+  switch (window) {
+    case "configuration": {
+      mainWindow.loadURL(url.format({
+        pathname: path.join(__dirname, '../views/configuration.html'),
+        protocol: 'file:',
+        slashes: true
+      }))
+      break;
+    }
+
+    case "home": {
+      mainWindow.loadURL(url.format({
+        pathname: path.join(__dirname, '../views/index.html'),
+        protocol: 'file:',
+        slashes: true
+      }))
+      break;
+    }
+    
+    default:
+      // code...
+      break;
+  }
 })
 
 ipcMain.on('config', (event) => {

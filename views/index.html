@@ -2,9 +2,13 @@
 <html>
   <head>
     <title>USB Device Info</title>
-    <link rel="stylesheet" href="style.css">
   </head>
   <body>
+    <nav>
+      <ul>
+        <li><a href="#" id="link-configuration">Device Configuration</a></li>
+      </ul>
+    </nav>
     <div class="left-panel">
       <p>Devices:</p>
       <p>
@@ -19,12 +23,7 @@
       <em>No device selected.</em>
     </p>
     <div id="footer">
-      <button id="connect-serial">Connect Serial</button>
-      <button id="ping-serial">Ping Serial</button>
-      <button id="disconnect-serial">Disconnect Serial</button>
     </div>
-    <script src=""></script>
-    <script src="../dist/renderers/configuration.js"></script>
-    
+    <script src="../dist/renderers/index.js"></script>
   </body>
 </html>

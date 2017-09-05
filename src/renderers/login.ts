@@ -3,17 +3,14 @@
 // All of the Node.js APIs are available in this process.
 
 import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger'
+import { Serial } from '../communication/serial/SerialHandler'
 
 const request = require('request')
 const {ipcRenderer} = require('electron')
-const serial = require('serialport')
-
-serial.list((err, ports) => {
-
-  console.log('ports', ports);
-})
 
 const form :HTMLElement = document.getElementById('login')
+
+const pingBtn :HTMLElement = document.getElementById('ping')
 
 let mail :string
 let password :string
