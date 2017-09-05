@@ -155,6 +155,12 @@ ipcMain.on('tyrionUrl', (event) => {
   event.returnValue = getTyrionUrl()
 })
 
+ipcMain.on('requestData', (event,requestedData ) => {
+ // if (requestedData=== "login"){
+    console.log(authToken);
+  event.returnValue = authToken;
+ // }
+})
 function getTyrionUrl() : string {
 
   Logger.info('getTyrionUrl: getting url')

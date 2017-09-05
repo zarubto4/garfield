@@ -1,4 +1,13 @@
 import * as Rx from 'rxjs';
+import { resolve } from 'path';
+
+const request = require('request');
+
+const { ipcRenderer } = require('electron');
+const rp = require('request-promise');
+
+
+
 
 export interface IWebSocketMessage {
     message_id: string;
@@ -18,6 +27,33 @@ export interface IWebSocketToken {
     websocket_token: string;
 }
 
+export class RestRequest {
+
+    method: string;
+
+    url: string;
+
+    headers: { [name: string]: string };
+
+    body: Object;
+
+    constructor(method: string, url: string, headers: { [name: string]: string } = {}, body?: Object) {
+        this.method = method;
+        this.url = url;
+        this.headers = {};
+        for (let header in headers) {
+            if (headers.hasOwnProperty(header)) {
+                this.headers[header] = headers[header];
+            }
+        }
+        this.headers['Accept'] = 'application/json';
+        this.headers['Content-Type'] = 'application/json';
+        this.body = body;       
+        
+    }
+}
+
+
 
 export class beckiCom {
 
@@ -33,27 +69,46 @@ export class beckiCom {
     public requestProxyServerUrl = 'http://127.0.0.1:3000/fetch/';
 
     private webSocketMessageQueue: IWebSocketMessage[] = [];
-    
+
     public webSocketErrorOccurred: Rx.Subject<any> = new Rx.Subject<any>();
 
-    public interactionsSchemeSubscribed: Rx.Subject<any> = new Rx.Subject<any>();    
+    public interactionsSchemeSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
 
     private webSocket: WebSocket = null;
 
     private webSocketReconnectTimeout: any = null;
 
     protected websocketErrorShown: boolean = false;
-    
-    protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
-    
 
-    public websocketGetAccessToken(): Promise<IWebSocketToken> {
-        return this.requestRestPath("GET", `/websocket/access_token`, {}, [200]);
+    private token = null;
+    //protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
+    constructor() {
+        this.interactionsSchemeSubscribed.subscribe(msg => (this.getMesseage(msg)));
+    }
+
+    getMesseage(msg){
+        console.log(msg);
+    }
+
+    private websocketGetAccessToken(): Promise<IWebSocketToken> {
+        let token = ipcRenderer.sendSync('requestData');
+        console.log("token: ",token);
+        let options = {
+            method: 'GET',
+            uri: ipcRenderer.sendSync('tyrionUrl') + '/websocket/access_token',
+            body: {},
+            json: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'garfield-app',
+                'x-auth-token': token
+            }
+        };
+       return rp(options);
     }
 
     // define function as property is needed to can set it as event listener (class methods is called with wrong this)
     protected reconnectWebSocketAfterTimeout = () => {
-        // console.log('reconnectWebSocketAfterTimeout()');
         clearTimeout(this.webSocketReconnectTimeout);
         this.webSocketReconnectTimeout = setTimeout(() => {
             this.connectWebSocket();
@@ -61,7 +116,6 @@ export class beckiCom {
     }
 
     protected disconnectWebSocket(): void {
-        // console.log('disconnectWebSocket()');
         if (this.webSocket) {
             this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
             this.webSocket.close();
@@ -90,11 +144,12 @@ export class beckiCom {
         }
     }
 
+
     public requestBeckiSubscribe(): void {
         let message = {
             message_id: this.uuid(),
             message_channel: beckiCom.WS_CHANNEL,
-            message_type: 'subscribe_becki'
+            message_type: 'subscribe_garfield'
         };
         if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
             this.sendWebSocketMessage(message);
@@ -113,18 +168,18 @@ export class beckiCom {
         });
     }
 
-    protected connectWebSocket(): void {
-        // console.log('connectWebSocket()');
+    public connectWebSocket(): void {
+        console.log('connectWebSocket()');
 
 
         this.disconnectWebSocket();
 
+
         this.websocketGetAccessToken()
             .then((webSocketToken: IWebSocketToken) => {
-
                 this.websocketErrorShown = false;
 
-                this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/garfield/${webSocketToken.websocket_token}`);
+                this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/becki/${webSocketToken.websocket_token}`);
                 this.webSocket.addEventListener('close', this.reconnectWebSocketAfterTimeout);
                 let opened = Rx.Observable
                     .fromEvent<void>(this.webSocket, 'open');
@@ -142,7 +197,7 @@ export class beckiCom {
                 let errorOccurred = Rx.Observable
                     .fromEvent(this.webSocket, 'error');
 
-                opened.subscribe(() => {
+                opened.subscribe(anything => {
                     this.requestBeckiSubscribe();
                 });
                 opened
@@ -168,7 +223,7 @@ export class beckiCom {
                 channelReceived
                     .filter(message => message.message_type === 'garfield')
                     .subscribe(this.interactionsSchemeSubscribed);
-            
+
                 errorOccurred
                     .subscribe(this.webSocketErrorOccurred);
 

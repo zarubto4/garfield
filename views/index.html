@@ -1,30 +1,35 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>USB Device Info</title>
-    <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <div class="left-panel">
-      <p>Devices:</p>
-      <p>
-        <select id="device-selector" size="20">
+
+<head>
+  <title>USB Device Info</title>
+  <!--link rel="stylesheet" href="style.css"-->
+</head>
+
+<body>
+  <div class="left-panel">
+    <p>Devices:</p>
+    <p>
+      <select id="device-selector" size="20">
         </select>
-      </p>
-      <p>
-        <button id="add-device">Add Device</button>
-      </p>
-    </div>
-    <p id="device-info">
-      <em>No device selected.</em>
     </p>
-    <div id="footer">
-      <button id="connect-serial">Connect Serial</button>
-      <button id="ping-serial">Ping Serial</button>
-      <button id="disconnect-serial">Disconnect Serial</button>
-    </div>
-    <script src=""></script>
-    <script src="../dist/renderers/configuration.js"></script>
-    
-  </body>
+    <p>
+      <button id="add-device">Add Device</button>
+      <button id="websocket-start">websocket start</button>
+
+    </p>
+  </div>
+  <p id="device-info">
+    <em>No device selected.</em>
+  </p>
+  <div id="footer">
+    <button id="connect-serial">Connect Serial</button>
+    <button id="ping-serial">Ping Serial</button>
+    <button id="disconnect-serial">Disconnect Serial</button>
+  </div>
+
+  <script src=""></script>
+  <script src="../dist/renderers/configuration.js"></script>
+</body>
+
 </html>
