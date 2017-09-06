@@ -9,10 +9,97 @@ const rp = require('request-promise');
 
 
 
-export interface IWebSocketMessage {
-    message_id: string;
-    message_channel: string;
-    message_type: string;
+export class IWebSocketMessage {
+    public message_id: string;
+    public message_channel: string;
+    public message_type: string;
+    
+    constructor(message_type: string) {
+        this.message_id = beckiCom.uuid();
+        this.message_channel = beckiCom.WS_CHANNEL_OUT;
+        this.message_type = message_type;
+    }
+}
+
+export class wsMesseageDeviceConnect extends IWebSocketMessage {
+    device_id: string;
+
+    constructor(device_id: string) {
+        super("device_connect"); //jediné, co se dopisuje je Messeage_type, ostatní se generuje v nadřazené třídě
+        this.device_id = device_id;
+    }
+}
+
+export class wsMesseageDeviceDisconnect extends IWebSocketMessage {
+    device_id: string;
+
+    constructor(device_id: string) {
+        super("device_disconnect");
+        this.device_id = device_id;
+    }
+}
+
+export class wsMesseageDevicePing extends IWebSocketMessage {
+    device_id: string;
+
+    constructor(device_id: string) {
+        super("device_ping");
+        this.device_id = device_id;
+    }
+}
+
+export class wsMesseageDeviceTest extends IWebSocketMessage {
+    device_id: string;
+
+    constructor(device_id: string) {
+        super("device_test");
+        this.device_id = device_id;
+    }
+}
+
+export class wsMesseageGarfieldConnect extends IWebSocketMessage {
+
+    constructor() {
+        super("garfield_connect");
+    }
+}
+
+export class wsMesseageGarfieldDisconnect extends IWebSocketMessage {
+
+    constructor() {
+        super("garfield_disconnect");
+    }
+}
+
+export class wsMesseageUpload extends IWebSocketMessage {//TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+    data:Blob; // lepší datový typ prob.?
+    //třeba předělat
+    constructor() {
+        super("upload");
+    }
+}
+
+export class wsMesseageGetConfurigation extends IWebSocketMessage { //get jakožto z pohledu Becki //TODO promyslet zda to necheme přejmenovat
+    confurigation:JSON; //TODO přepsat/rozepsat dle nastavení HW
+    constructor(confurigation:any) {
+        super("get_confurigation");
+        this.confurigation = confurigation;
+    }
+}
+
+
+export class wsMesseageSetConfurigation extends IWebSocketMessage {
+    confurigation: JSON; //TODO přepsat/rozepsat dle nastavení HW
+    constructor() {
+        super("set_confurigation");
+    }
+}
+
+export class wsMesseageForceDeviceConnection extends IWebSocketMessage {
+    confurigation: JSON; //TODO přepsat/rozepsat dle nastavení HW
+    constructor() {
+        super("force_device_connect");
+    }
 }
 
 
@@ -48,8 +135,8 @@ export class RestRequest {
         }
         this.headers['Accept'] = 'application/json';
         this.headers['Content-Type'] = 'application/json';
-        this.body = body;       
-        
+        this.body = body;
+
     }
 }
 
@@ -59,6 +146,8 @@ export class beckiCom {
 
 
     public static WS_CHANNEL = 'garfield';
+
+    public static WS_CHANNEL_OUT = 'becki';
 
     public host = '127.0.0.1:9000';
 
@@ -74,6 +163,9 @@ export class beckiCom {
 
     public interactionsSchemeSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
 
+    public beckiMesseageSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
+    
+
     private webSocket: WebSocket = null;
 
     private webSocketReconnectTimeout: any = null;
@@ -84,15 +176,22 @@ export class beckiCom {
     //protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
     constructor() {
         this.interactionsSchemeSubscribed.subscribe(msg => (this.getMesseage(msg)));
+        this.beckiMesseageSubscribed.subscribe(msg => (this.getDiffMesseage(msg)));
     }
 
-    getMesseage(msg){
+
+    getDiffMesseage(msg: wsMesseageSetConfurigation) {
+        console.log(msg);
+    }
+
+
+    getMesseage(msg) {
         console.log(msg);
     }
 
     private websocketGetAccessToken(): Promise<IWebSocketToken> {
         let token = ipcRenderer.sendSync('requestData');
-        console.log("token: ",token);
+        console.log("token: ", token);
         let options = {
             method: 'GET',
             uri: ipcRenderer.sendSync('tyrionUrl') + '/websocket/access_token',
@@ -104,7 +203,7 @@ export class beckiCom {
                 'x-auth-token': token
             }
         };
-       return rp(options);
+        return rp(options);
     }
 
     // define function as property is needed to can set it as event listener (class methods is called with wrong this)
@@ -146,11 +245,8 @@ export class beckiCom {
 
 
     public requestBeckiSubscribe(): void {
-        let message = {
-            message_id: this.uuid(),
-            message_channel: beckiCom.WS_CHANNEL,
-            message_type: 'subscribe_garfield'
-        };
+         
+            let message =new IWebSocketMessage('subscribe_garfield');
         if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
             this.sendWebSocketMessage(message);
         }
@@ -223,6 +319,10 @@ export class beckiCom {
                 channelReceived
                     .filter(message => message.message_type === 'garfield')
                     .subscribe(this.interactionsSchemeSubscribed);
+                channelReceived
+                    .filter(message => message.message_type === 'set_confurigation')
+                    .subscribe(this.beckiMesseageSubscribed);
+
 
                 errorOccurred
                     .subscribe(this.webSocketErrorOccurred);
@@ -237,7 +337,7 @@ export class beckiCom {
             });
     }
 
-    public uuid(): string {
+    public static uuid(): string {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             // tslint:disable-next-line:no-bitwise
             let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);

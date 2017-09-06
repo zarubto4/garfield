@@ -1,6 +1,6 @@
 
 const path = require("path");
-const becki = require(path.resolve('/home/grayfoox/garfield/dist/communication/serial/beckiHandler.js'));
+const becki = require(path.resolve('/home/grayfoox/garfield/dist/communication/serial/beckiHandler.js')); //TODO bude třeba přepsat
 
 
 const serial = require('serialport');
@@ -15,11 +15,10 @@ let myBecki = new becki.beckiCom();
 connectBtn.addEventListener('click', function () { });
 disconnectBtn.addEventListener('click', function () { });
 pingBtn.addEventListener('click', function () {
-  myBecki.sendWebSocketMessage({
-    message_id: "kkk",
-    message_channel: "garfield",
-    message_type: "string"
-  })
+
+  myBecki.sendWebSocketMessage(new becki.wsMesseageDeviceConnect("karel"));
+
+  myBecki.sendWebSocketMessage(new becki.wsMesseageDeviceDisconnect("kaprisone"));
 });
 websocketBtn.addEventListener('click', () => { myBecki.connectWebSocket() });
 serial.list((err, ports) => {
