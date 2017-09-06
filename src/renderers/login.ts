@@ -2,58 +2,56 @@
 // be executed in the renderer process for that window.
 // All of the Node.js APIs are available in this process.
 
-import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger'
-import { Serial } from '../communication/serial/SerialHandler'
+import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
+import { Serial } from '../communication/serial/SerialHandler';
 
-const request = require('request')
-const {ipcRenderer} = require('electron')
+const request = require('request');
+const {ipcRenderer} = require('electron');
 
-const form :HTMLElement = document.getElementById('login')
+const form: HTMLElement = document.getElementById('login');
 
-const pingBtn :HTMLElement = document.getElementById('ping')
+const pingBtn: HTMLElement = document.getElementById('ping');
 
-let mail :string
-let password :string
+let mail: string;
+let password: string;
 
-form.addEventListener('submit', function(event){
+form.addEventListener('submit', function(event) {
 
-  event.preventDefault()
+    event.preventDefault();
 
-  mail = (<HTMLInputElement>document.getElementById('mail')).value
-  password = (<HTMLInputElement>document.getElementById('password')).value
-	
-	if (mail || password) {
+    mail = (<HTMLInputElement>document.getElementById('mail')).value;
+    password = (<HTMLInputElement>document.getElementById('password')).value;
 
-  		let body = {
-   		  mail: mail,
-     	  password: password
-    	}
+    if (mail || password) {
 
-      request({
-        method: 'POST',
-        uri: ipcRenderer.sendSync('tyrionUrl') + '/login',
-        body: body,
-        json: true,
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'garfield-app'
-        }
-      }, function(error, response, body){
+        let senderBody = {
+            mail: mail,
+            password: password
+        };
 
-        if(error) {
+        request({
+            method: 'POST',
+            uri: ipcRenderer.sendSync('tyrionUrl') + '/login',
+            body: senderBody,
+            json: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'garfield-app'
+            }
+        }, function(error, response, body) {
 
-        } else {
+            if (error) {
 
-          if (response.statusCode !== 200) {
-            alert('Error: status = ' + body.code + ' response = ' + body.message)
-          } else {
-            ipcRenderer.send('login', body.authToken)
-          }
-        }
-        
-        console.log(body)
-      })
-	}
+            } else {
 
-	return false
-})
+                if (response.statusCode !== 200) {
+                    alert('Error: status = ' + body.code + ' response = ' + body.message);
+                } else {
+                    ipcRenderer.send('login', body.authToken);
+                }
+            }
+        });
+    }
+
+    return false;
+});

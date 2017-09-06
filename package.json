@@ -7,6 +7,7 @@
   	"install": "echo You need to rebuild some packages for the node version that electron uses. Use 'npm run rebuild-win' on Windows or 'npm run rebuild-unix' on Unix.",
     "rebuild-win" : ".\\node_modules\\.bin\\electron-rebuild.cmd",
     "rebuild-unix" : "./node_modules/.bin/electron-rebuild",
+    "lint": "tslint --force \"src/**/*.ts\"",
     "start": "electron .",
     "build": "rimraf dist && tsc",
     "build-start": "npm run build && npm start"
@@ -18,7 +19,9 @@
   "author": "Alexandr Tylš",
   "license": "UNLICENSED",
   "devDependencies": {
-    "electron-rebuild": "^1.6.0"
+    "electron-rebuild": "^1.6.0",
+    "tslint": "^4.3.1",
+    "tslint-eslint-rules": "^3.2.3"
   },
   "dependencies": {
     "electron": "~1.7.5",
