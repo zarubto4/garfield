@@ -68,7 +68,7 @@
       }
     ],
     "no-arg": true,
-    "no-bitwise": true,
+    "no-bitwise": false,
     "no-string-throw": true,
     "no-console": [true, "log"],
     "no-construct": true,

@@ -1,46 +1,65 @@
 import { Serial } from '../communication/serial/SerialHandler';
 import { Logger } from 'logger';
-import { Queue } from './Queue';
+import { Queue } from '../utils/Queue';
 
-export class DeviceConfigurator{
+class Property {
+
+    public key: string;
+    public value: string;
+
+    constructor(key: string, value: any) {
+        this.key = key;
+        this.value = value.toString();
+    }
+}
+
+export class Configurator {
 
     public connection: Serial;
-    public messageCallback: any;
-    
-    public queue: Queue<string>;
+
+    constructor(serialConnection: Serial) {
+        this.connection = serialConnection;
+    }
 
     public connect(connectionCallback, messageCallback) {
-        this.connection = new Serial((err) => {
+        /*this.connection = new Serial((err) => {
 
             if (err) {
                 connectionCallback(err);
+                return;
             }
 
-            Logger.info('Device is connected');
-            this.connection.on('message', (message) => {
-                Logger.info('DeviceConfigurator got this message = ' + message);
-                messageCallback(message);
-            });
-            connectionCallback();
-        });
+              
+        });*/
+
+        this.connection = new Serial();
+        this.connection.on('connect', () => {
+            Logger.info('Configurator aquired a connection');
+        })
+
+        this.messageCallback = messageCallback;
+        this.connection.on('message', this.messageCallback);
+
+        this.connection.connect(connectionCallback);
     }
 
     public beginConfiguration(callback: (configurationError?: string) => void) {
         if (this.connection) {
 
-            this.queue = new Queue<string>();
-            this.configurationCallback = callback;
+            this.queue = new Queue<Property>();
 
             for (const key of Object.keys(this.config)) {
-                this.queue.push(key);
+
+                this.queue.push(new Property(key, this.config[key]));
             }
 
+            this.queue.push(new Property('configured', 1));
+
             this.currentPropertyTry = 3;
-            this.configure();
-
-            this.configureMessageHandler = this.onConfigureMessage.bind(this)
-
+            this.configurationCallback = callback;
+            this.configureMessageHandler = this.onConfigureMessage.bind(this);
             this.connection.on('message', this.configureMessageHandler);
+            this.configure();
         }
     }
 
@@ -64,8 +83,8 @@ export class DeviceConfigurator{
 
     private configure() {
         this.currentPropertyTry--;
-        let property: string = this.queue.getTop();
-        this.send(property + '=' + this.config[property]);
+        let property: Property = this.queue.getTop();
+        this.send('YODA:' + property.key + '=' + property.value);
         this.currentPropertyTimeout = setTimeout(() => {
             Logger.info('Response timeout - number of remaining tries = ' + this.currentPropertyTry);
             if (this.currentPropertyTry === 0) {
@@ -78,6 +97,7 @@ export class DeviceConfigurator{
 
     private endConfiguration(error?: string): void {
         this.connection.removeListener('message', this.configureMessageHandler);
+        this.connection.flush();
         this.configureMessageHandler = null;
         this.configurationCallback(error);
     }
@@ -85,14 +105,18 @@ export class DeviceConfigurator{
     private onConfigureMessage(message: string) {
         clearTimeout(this.currentPropertyTimeout);
 
-        Logger.info('DeviceConfigurator got response on configure = ' + message);
+        Logger.info('Configurator got response on configure = ' + message);
+
+        message = message.replace('YODA:',''); // Remove prefix
 
         let type: string = Serial.getMessageType(message);
         let value: string = Serial.getMessageValue(message);
 
-        Logger.info('Current property = ' + type + ' value = ' + this.config[type]);
+        let property: Property = this.queue.getTop();
 
-        if (this.config[type] === value) { // If the current property was changed successfully
+        Logger.info('Current property = ' + type + ' value = ' + value);
+
+        if (property.value === value) { // If the current property was changed successfully
             this.queue.pop(); // Shifts queue, so the first element is out
             this.currentPropertyTry = 3;
             if (this.queue.isEmpty()) {
@@ -103,10 +127,12 @@ export class DeviceConfigurator{
         this.configure();
     }
 
+    private queue: Queue<Property>;
     private currentPropertyTimeout: any;
     private currentPropertyTry: number;
+    private messageCallback: (message: string) => void;
     private configurationCallback: (configurationError?: string) => void;
-    private configureMessageHandler: (message: string) => void
+    private configureMessageHandler: (message: string) => void;
 
     private config: any = {
         normal_mqtt_hostname: 'dummy_host',

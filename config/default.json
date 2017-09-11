@@ -2,6 +2,11 @@
     "tyrionHost": "localhost:9000",
     "tyrionSecured": false,
     "tyrionReconnectTimeout": 10000,
+    "serial": {
+        "baudRate" : 115200,
+        "ctsrts" : true,
+        "crc" : true
+    },
     "loggers": {
         "default": {
             "level": "trace",

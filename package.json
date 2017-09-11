@@ -4,31 +4,34 @@
   "description": "Desktop Garfield application for testing and firts setup of hardware.",
   "main": "dist/main.js",
   "scripts": {
-  	"install": "echo You need to rebuild some packages for the node version that electron uses. Use 'npm run rebuild-win' on Windows or 'npm run rebuild-unix' on Unix.",
-    "rebuild-win" : ".\\node_modules\\.bin\\electron-rebuild.cmd",
-    "rebuild-unix" : "./node_modules/.bin/electron-rebuild",
+    "install": "echo You need to rebuild some packages for the node version that electron uses. Use 'npm run rebuild-win' on Windows or 'npm run rebuild-unix' on Unix.",
+    "rebuild-win": ".\\node_modules\\.bin\\electron-rebuild.cmd",
+    "rebuild-unix": "./node_modules/.bin/electron-rebuild",
     "lint": "tslint --force \"src/**/*.ts\"",
     "start": "electron .",
     "build": "rimraf dist && tsc",
-    "build-start": "npm run build && npm start"
+    "build-start": "npm run build && npm start",
+    "package": ""
   },
-  "repository": "",
+  "repository": "https://github.com/ByzanceIoT/garfield.git",
   "keywords": [
     "garfield"
   ],
   "author": "Alexandr Tylš",
   "license": "UNLICENSED",
   "devDependencies": {
+    "electron-packager": "^9.0.1",
     "electron-rebuild": "^1.6.0",
     "tslint": "^4.3.1",
     "tslint-eslint-rules": "^3.2.3"
   },
   "dependencies": {
+    "drivelist": "^5.1.8",
     "electron": "~1.7.5",
     "logger": "git+ssh://git@github.com:ByzanceIoT/js-logger.git#v1.2.1",
     "request": "^2.81.0",
+    "serialport": "5.0.0",
     "typescript": "2.4.2",
-    "usb": "git+ssh://git@github.com:tessel/node-usb.git#1.3.0",
-    "serialport": "5.0.0"
+    "usb": "git+ssh://git@github.com:tessel/node-usb.git#1.3.0"
   }
 }

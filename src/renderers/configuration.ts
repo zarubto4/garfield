@@ -1,4 +1,4 @@
-import { DeviceConfigurator } from '../utils/DeviceConfigurator';
+import { Configurator } from '../device/Configurator';
 import { Logger } from 'logger';
 const { ipcRenderer } = require('electron');
 
@@ -11,16 +11,16 @@ const output: HTMLInputElement = <HTMLInputElement>document.getElementById('outp
 
 let connected: boolean = false;
 
-let configurator: DeviceConfigurator;
+let configurator: Configurator;
 
 connectBtn.addEventListener('click', () => {
 
     if (!configurator) {
-        configurator = new DeviceConfigurator();
-        configurator.connect((err) => {
+        configurator = new Configurator(null);
+        configurator.connect((err: string) => {
 
             if (err) {
-                output.value += err.message + '\n';
+                output.value += err + '\n';
                 configurator = null;
             } else {
                 connectBtn.innerText = 'Disconnect';
@@ -47,7 +47,7 @@ configureBtn.addEventListener('click', () => {
         } else {
             Logger.info('Configuration ended');
             output.value += 'Configuration is complete\n';
-        } 
+        }
     });
 });
 

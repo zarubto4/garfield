@@ -1,7 +1,7 @@
-//import { ipcRenderer } from 'electron'
+// import { ipcRenderer } from 'electron'
 
-const { ipcRenderer } = require('electron')
+const { ipcRenderer } = require('electron');
 
 document.getElementById('link-configuration').addEventListener('click', () => {
-  ipcRenderer.send('window', 'configuration')
-})
+    ipcRenderer.send('window', 'configuration');
+});

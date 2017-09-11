@@ -1,15 +1,15 @@
 import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
+import { Serial } from './communication/serial/SerialHandler';
 import { ConfigManager } from './utils/ConfigManager';
-
-const electron = require('electron');
-// Module to control application life.
-const app = electron.app;
-// Module to create native browser window.
-const BrowserWindow = electron.BrowserWindow;
+import { app, ipcMain, BrowserWindow, Tray, Menu, MenuItem} from 'electron';
+import * as drivelist from 'drivelist';
+import * as fs from 'fs';
+import { Device } from './device/Device';
+import { Tester } from './device/Tester';
+import { Configurator } from './device/Configurator';
 
 const path = require('path');
 const url = require('url');
-const {ipcMain} = require('electron');
 const usb = require('usb');
 
 const configValidator = {
@@ -23,6 +23,20 @@ const configValidator = {
         },
         tyrionReconnectTimeout: {
             type: 'number'
+        },
+        serial: {
+            type: 'object',
+            structure: {
+                baudRate: {
+                    type: 'number'
+                },
+                ctsrts: {
+                    type: 'boolean'
+                },
+                crc: {
+                    type: 'boolean'
+                }
+            }
         },
         loggers: {
             type: 'object',
@@ -48,8 +62,10 @@ const configValidator = {
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow;
-let authToken;
+let tray;
+let authToken: string;
 let configPath = 'config/default.json';
+let devices: Device[];
 
 // init ConfigManager - if anything fail, exit program
 let configManager: ConfigManager = null;
@@ -69,6 +85,10 @@ function createWindow () {
 
     // Create the browser window.
     mainWindow = new BrowserWindow({show: false});
+    tray = new Tray(path.join(__dirname, '../byzance_logo.png'));
+    tray.setToolTip('Garfield App');
+
+    renderTrayContextMenu();
 
     mainWindow.on('ready-to-show', () => {
         mainWindow.maximize();
@@ -119,7 +139,7 @@ app.on('window-all-closed', function () {
     // On OS X it is common for applications and their menu bar
     // to stay active until the user quits explicitly with Cmd + Q
     if (process.platform !== 'darwin') {
-        app.quit();
+        // app.quit();
     }
 });
 
@@ -177,6 +197,10 @@ ipcMain.on('config', (event) => {
     event.returnValue = configManager.config();
 });
 
+ipcMain.on('configManager', (event) => {
+    event.returnValue = configManager;
+});
+
 ipcMain.on('tyrionUrl', (event) => {
     event.returnValue = getTyrionUrl();
 });
@@ -194,8 +218,147 @@ function getTyrionUrl(): string {
 
 usb.on('attach', function(device) {
     Logger.warn('Device was connected. ' + JSON.stringify(device));
+    renderTrayContextMenu();
 });
 
 usb.on('detach', function(device) {
     Logger.warn('Device was disconnected. ' + JSON.stringify(device));
 });
+
+function clickMenuItem(menuItem, browserWindow, event) {
+    Logger.info('Click on button');
+    Logger.info(menuItem);
+
+    switch (menuItem.id) {
+        case 'login': {
+            // mainWindow = new BrowserWindow({useContentSize: true, icon: path.join(__dirname, '../byzance_logo.png')});
+            mainWindow.loadURL(url.format({
+                pathname: path.join(__dirname, '../views/login.html'),
+                protocol: 'file:',
+                slashes: true
+            }));
+            break;
+        }
+        case 'connect': {
+
+            // addDevice();
+            break;
+        }
+        case 'configure': {
+
+            // addDevice();
+            break;
+        }
+        case 'test': {
+
+            // addDevice();
+            break;
+        }
+        case 'quit': {
+            app.quit();
+            break;
+        }
+
+        default:
+            // code...
+            break;
+    }
+}
+
+function addDevice(path: string) {
+
+    Logger.info('Adding new device');
+
+    let device: Device;
+
+    drivelist.list((error, drives) => {
+
+        if (error) {
+            throw error;
+        }
+
+        Logger.info(JSON.stringify(drives));
+
+        drives.forEach((drive) => {
+
+            if (drive.system) {
+                return; // System drives will be skipped
+            }
+
+            if (drive.displayName.match(/^BYZG3_\d{4}$/)) { // If name is patern 'BYZG3_dddd' where d is a number
+
+                devices.forEach((dev, index) => {
+                    if (dev.getPath() === drive.mountpoints[0].path) { // Check if device is already connected
+                        Logger.info('This device ' + drive.displayName + ' is already connected - skipping');
+                        return;
+                    } else if (index === devices.length - 1) {
+
+                        Logger.info('Device is new, connecting to ' + drive.displayName);
+
+                        let serial: Serial = new Serial();
+
+                        serial.on('connected' , () => {
+                            device = new Device(drive.displayName, drive.mountpoints[0].path, serial);
+                        });
+                    }
+                });
+            }
+        });
+    });
+}
+
+function selectDrive(menuItem, browserWindow, event) {
+    Logger.info('Device is new, connecting to ' + menuItem.id);
+
+    let serial: Serial = new Serial();
+
+    let device: Device;
+
+    serial.on('connected' , () => {
+        device = new Device(menuItem.id, menuItem.id, serial);
+        devices.push(device);
+    });
+}
+
+function renderTrayContextMenu() {
+    drivelist.list((error, drives) => {
+
+        if (error) {
+            throw error;
+        }
+
+        Logger.info(JSON.stringify(drives));
+
+        let submenu: any[] = []; 
+
+        drives.forEach((drive) => {
+
+            if (drive.system) {
+                return; // System drives will be skipped
+            }
+
+            Logger.info('Rendering button for drive ' + drive.displayName);
+
+            let item = {
+                id: drive.mountpoints[0].path,
+                label: drive.mountpoints[0].path,
+                click: selectDrive
+            };
+
+            submenu.push(item);
+        });
+
+        const contextMenu = Menu.buildFromTemplate([
+            {id: 'login', label: 'Login', type: 'normal', click: clickMenuItem},
+            {type: 'separator'},
+            {id: 'connect', label: 'Connect device', type: 'normal', click: clickMenuItem},
+            {label: 'Select drive', submenu: submenu},
+            {id: 'configure', label: 'Configure', type: 'normal', click: clickMenuItem},
+            {id: 'test', label: 'Test', type: 'normal', click: clickMenuItem},
+            {type: 'separator'},
+            {id: 'quit', label: 'Quit', type: 'normal', click: clickMenuItem}
+            ]);
+
+        tray.setContextMenu(contextMenu);
+    });
+}
