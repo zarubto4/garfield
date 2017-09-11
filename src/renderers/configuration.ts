@@ -1,7 +1,7 @@
 
 const path = require("path");
-const becki = require(path.resolve('/home/grayfoox/garfield/dist/communication/beckiHandler.js')); //TODO bude třeba přepsat
-const usbhand = require(path.resolve('/home/grayfoox/garfield/dist/communication/usbHandler.js')); //TODO bude třeba přepsat
+const becki = require(path.resolve('../../dist/communication/beckiHandler.js')); //TODO bude třeba přepsat
+const usbhand = require(path.resolve('../../dist/communication/usbHandler.js')); //TODO bude třeba přepsat
 
 const serial = require('serialport');
 

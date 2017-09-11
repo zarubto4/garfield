@@ -186,7 +186,7 @@ export class beckiCom {
 
 
     getMesseage(msg) {
-        console.log(msg);
+        console.log("WS: ",msg);
     }
 
     private websocketGetAccessToken(): Promise<IWebSocketToken> {
@@ -319,9 +319,7 @@ export class beckiCom {
                 channelReceived
                     .filter(message => message.message_type === 'garfield')
                     .subscribe(this.interactionsSchemeSubscribed);
-                channelReceived
-                    .filter(message => message.message_type === 'set_confurigation')
-                    .subscribe(this.beckiMesseageSubscribed);
+  
 
 
                 errorOccurred
