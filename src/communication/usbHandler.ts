@@ -1,8 +1,9 @@
 import { resolve } from 'path';
-const usb = require('usb')
+import { Logger } from 'logger';
+const usb = require('usb');
 
 
-export class usbHander {
+export class UsbHandler {
 
     devices: any[];
     current_device: any;
@@ -10,37 +11,33 @@ export class usbHander {
 
     }
 
-
     refresh(): void {
         this.devices = usb.getDeviceList();
-        console.log(this.devices);
-        this.current_device = this.devices.find(device => device.deviceDescriptor.idProduct == "4660");
-        // vendor "43981"
-        // product: "4660"
+        Logger.info(this.devices);
+        this.current_device = this.devices.find(device => device.deviceDescriptor.idProduct === '4660');
+        // vendor '43981'
+        // product: '4660'
 
-        console.log(this.current_device);
+        Logger.info(this.current_device);
         this.current_device.open();
 
 
         // let outEndpoint;
-        let data = new Array(["This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content"]);
+        let data = new Array(['This is my blob content This is my blob content This is my blob content This is my blob content This is my blob content']);
 
-     
-
-
-        console.log("interfaces: ", this.current_device.interfaces);
+        Logger.info('interfaces: ', this.current_device.interfaces);
 
         // this.current_device.interface(0).claim();
 
         if (!this.current_device) {
-            console.log("nodevicefond");
+            Logger.info('nodevicefond');
 
             return;
         }
-        let deviceInterface = this.current_device.interfaces[0]
+        let deviceInterface = this.current_device.interfaces[0];
 
-        console.log("kernel attached: ", deviceInterface.isKernelDriverActive());
-        let kernelWasAttached = false
+        Logger.info('kernel attached: ', deviceInterface.isKernelDriverActive());
+        let kernelWasAttached = false;
         if (deviceInterface.isKernelDriverActive()) {
             kernelWasAttached = true;
             deviceInterface.detachKernelDriver();
@@ -51,39 +48,35 @@ export class usbHander {
         let transferEndpoint = deviceInterface.endpoint(1);
 
 
-        console.log(transferEndpoint);
+        Logger.info(transferEndpoint);
 
-console.log(data);
+        Logger.info(data);
         let transfer = new Promise(() => {
-            console.log(transferEndpoint.transferType);
-            if(transferEndpoint)
-            transferEndpoint.transfer(data, (error) => {
-                if (error) {
-                    console.log(error);
-                }
-                console.log("transfering");
-                resolve();
-            })
+            Logger.info(transferEndpoint.transferType);
+            if (transferEndpoint) {
+                transferEndpoint.transfer(data, (error) => {
+                    if (error) {
+                        Logger.info(error);
+                    }
+                    Logger.info('transfering');
+                    resolve();
+                });
+            }
         }).then(() => {
 
             deviceInterface.release([transferEndpoint], error => {
                 if (error) {
-                    console.log("USB error: ", error);
+                    Logger.info('USB error: ', error);
                 }
                 if (kernelWasAttached) {
                     deviceInterface.attachKernelDriver();
-                    console.log('attached');
+                    Logger.info('attached');
                 }
 
                 this.current_device.close();
-                console.log(" transfer end")
-
-
+                Logger.info(' transfer end');
             });
-        })
-
-        // outEndpoint.transfer(data,error => console.log("USB error: ",error));
-
-
+        });
+        // outEndpoint.transfer(data,error => Logger.info('USB error: ',error));
     }
 }

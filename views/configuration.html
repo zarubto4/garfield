@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Garfield | Device Configuration</title>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="#" id="link-index">Home</a></li>
+      </ul>
+    </nav>
+    <p>
+      Configuration is done over the serial communication.
+    </p>
+    <button id="connect">Connect</button>
+    <button id="configure" disabled="disabled">Configure</button>
+    <button id="ping" disabled="disabled">Ping</button>
+    <button id="clear">Clear output</button>
+    <form id="send-message" style="margin-top: 10px">
+      <input type="text" id="message">
+      <button type="submit" id="send" disabled="disabled">Send</button>
+    </form>
+    <textarea id="output" readonly="readonly" rows="10" style="width: 100%; margin: 10px 10px 0 0; "></textarea>
+  </body>
+
+  <script>
+    // You can also require other files to run in this process
+    require('../dist/renderers/configuration.js')
+  </script>
+</html>

@@ -1,31 +1,84 @@
+import { Configurator } from '../device/Configurator';
+import { Logger } from 'logger';
+const { ipcRenderer } = require('electron');
 
-const path = require("path");
-const becki = require(path.resolve('../../dist/communication/beckiHandler.js')); //TODO bude třeba přepsat
-const usbhand = require(path.resolve('../../dist/communication/usbHandler.js')); //TODO bude třeba přepsat
+const connectBtn: HTMLButtonElement = <HTMLButtonElement>document.getElementById('connect');
+const pingBtn = document.getElementById('ping');
+const sendMsg = document.getElementById('send-message');
+const sendBtn = document.getElementById('send');
+const configureBtn = document.getElementById('configure');
+const output: HTMLInputElement = <HTMLInputElement>document.getElementById('output');
 
-const serial = require('serialport');
+let configurator: Configurator;
 
-const connectBtn = document.getElementById('connect-serial');
-const disconnectBtn = document.getElementById('disconnect-serial');
-const pingBtn = document.getElementById('ping-serial');
-const websocketBtn = document.getElementById('websocket-start');
+connectBtn.addEventListener('click', () => {
 
-let myBecki = new becki.beckiCom();
-let usb = new usbhand.usbHander();
+    if (!configurator) {
+        configurator = new Configurator(null);
+        configurator.connect((err: string) => {
 
-connectBtn.addEventListener('click', function () { 
-usb.refresh();
+            if (err) {
+                output.value += err + '\n';
+                configurator = null;
+            } else {
+                connectBtn.innerText = 'Disconnect';
+                toggleButtonDisable(false);
+            }
 
+        }, (message: string) => {
+            output.value += message + '\n';
+        });
+    } else if (configurator.connection.isOpen()) {
+        configurator.disconnect(() => {
+            configurator = null;
+            connectBtn.innerText = 'Connect';
+            toggleButtonDisable(true);
+        });
+    }
 });
-disconnectBtn.addEventListener('click', function () { });
-pingBtn.addEventListener('click', function () {
 
-  myBecki.sendWebSocketMessage(new becki.wsMesseageDeviceConnect("karel"));
-
-  myBecki.sendWebSocketMessage(new becki.wsMesseageDeviceDisconnect("kaprisone"));
+configureBtn.addEventListener('click', () => {
+    configurator.beginConfiguration((error: string) => {
+        if (error) {
+            Logger.error('Configuration completed with errors: ' + error);
+            output.value += 'Configuration completed with errors: ' + error + '\n';
+        } else {
+            Logger.info('Configuration ended');
+            output.value += 'Configuration is complete\n';
+        }
+    });
 });
-websocketBtn.addEventListener('click', () => { myBecki.connectWebSocket() });
-serial.list((err, ports) => {
 
-  console.log('ports', ports);
-})
+pingBtn.addEventListener('click', () => {
+    configurator.ping();
+});
+
+sendMsg.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    if (configurator && configurator.connection.isOpen()) {
+        configurator.send((<HTMLInputElement>document.getElementById('message')).value);
+    }
+
+    return false;
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+    output.value = '';
+});
+
+document.getElementById('link-index').addEventListener('click', () => {
+    ipcRenderer.send('window', 'home');
+});
+
+function toggleButtonDisable(disabled: boolean) {
+    if (disabled) {
+        pingBtn.setAttribute('disabled', 'disabled');
+        sendBtn.setAttribute('disabled', 'disabled');
+        configureBtn.setAttribute('disabled', 'disabled');
+    } else {
+        pingBtn.removeAttribute('disabled');
+        sendBtn.removeAttribute('disabled');
+        configureBtn.removeAttribute('disabled');
+    }
+}

@@ -2,9 +2,9 @@
  * Created by davidhradek on 19.06.17.
  */
 
-import { resolve } from 'path'
-import { Logger, LoggerFileTarget, LoggerLevel, LoggerManager } from 'logger'
-import { readFileSync } from 'fs'
+import { resolve } from 'path';
+import { Logger, LoggerFileTarget, LoggerLevel, LoggerManager } from 'logger';
+import { readFileSync } from 'fs';
 
 /**
  * ConfigManager is used to load config json and validate it
@@ -26,21 +26,21 @@ export class ConfigManager {
      */
     public static configLoggers(loggersConfig: any) {
 
-        let keys = Object.keys(loggersConfig)
+        let keys = Object.keys(loggersConfig);
 
         keys.forEach((key) => {
-            let config = loggersConfig[key]
-            let logger = LoggerManager.get(key)
+            let config = loggersConfig[key];
+            let logger = LoggerManager.get(key);
 
-            logger.config.colorsEnabled = config.colors
-            let level = this.stringToLoggerLevel(config.level)
+            logger.config.colorsEnabled = config.colors;
+            let level = this.stringToLoggerLevel(config.level);
             if (!level) {
-                throw new Error('Wrong logger level for logger ' + key)
+                throw new Error('Wrong logger level for logger ' + key);
             }
-            logger.config.logLevel = level
+            logger.config.logLevel = level;
 
-           //logger.loggerTarget = new LoggerFileTarget(config.target)
-        })
+           // logger.loggerTarget = new LoggerFileTarget(config.target)
+        });
 
     }
 
@@ -106,17 +106,17 @@ export class ConfigManager {
      */
     constructor(configPath: string, configValidator: any) {
 
-        this.configValidator = configValidator
+        this.configValidator = configValidator;
 
-        let path = resolve(__dirname + '/../..', configPath)
+        let path = resolve(__dirname + '/../..', configPath);
 
-        Logger.log('Loading config file:', path)
+        Logger.log('Loading config file:', path);
 
-        let config = readFileSync(path, 'utf8')
+        let config = readFileSync(path, 'utf8');
 
-        let configObject = JSON.parse(config)
+        let configObject = JSON.parse(config);
 
-        this.validateAndLoad(configObject)
+        this.validateAndLoad(configObject);
 
     }
 
@@ -128,9 +128,9 @@ export class ConfigManager {
      */
     public get<T>(key: string): T {
         if (this.loadedConfig.hasOwnProperty(key)) {
-            return this.loadedConfig[key]
+            return this.loadedConfig[key];
         }
-        return null
+        return null;
     }
 
     /**
@@ -139,7 +139,7 @@ export class ConfigManager {
      * @returns {any}
      */
     public get config(): any {
-        return this.loadedConfig
+        return this.loadedConfig;
     }
 
     /**
@@ -150,14 +150,14 @@ export class ConfigManager {
      */
     protected static loggerLevelToString(level: LoggerLevel): string {
         switch (level) {
-            case LoggerLevel.None: return 'none'
-            case LoggerLevel.Error: return 'error'
-            case LoggerLevel.Warn: return 'warn'
-            case LoggerLevel.Info: return 'info'
-            case LoggerLevel.Debug: return 'debug'
-            case LoggerLevel.Trace: return 'trace'
+            case LoggerLevel.None: return 'none';
+            case LoggerLevel.Error: return 'error';
+            case LoggerLevel.Warn: return 'warn';
+            case LoggerLevel.Info: return 'info';
+            case LoggerLevel.Debug: return 'debug';
+            case LoggerLevel.Trace: return 'trace';
         }
-        return 'unknown'
+        return 'unknown';
     }
 
     /**
@@ -168,14 +168,14 @@ export class ConfigManager {
      */
     protected static  stringToLoggerLevel(level: string): LoggerLevel {
         switch (level.toLowerCase()) {
-            case 'none': return LoggerLevel.None
-            case 'error': return LoggerLevel.Error
-            case 'warn': return LoggerLevel.Warn
-            case 'info': return LoggerLevel.Info
-            case 'debug': return LoggerLevel.Debug
-            case 'trace': return LoggerLevel.Trace
+            case 'none': return LoggerLevel.None;
+            case 'error': return LoggerLevel.Error;
+            case 'warn': return LoggerLevel.Warn;
+            case 'info': return LoggerLevel.Info;
+            case 'debug': return LoggerLevel.Debug;
+            case 'trace': return LoggerLevel.Trace;
         }
-        return null
+        return null;
     }
 
     /**
@@ -184,7 +184,7 @@ export class ConfigManager {
      * @param configObject
      */
     protected validateAndLoad(configObject: any) {
-        this.loadedConfig = this.validateField(configObject, this.configValidator, 'config file root')
+        this.loadedConfig = this.validateField(configObject, this.configValidator, 'config file root');
     }
 
     /**
@@ -197,69 +197,69 @@ export class ConfigManager {
      */
     protected validateField(field: any, descriptor: any, fieldName: string): any {
 
-        let wantedType: string = descriptor.type
+        let wantedType: string = descriptor.type;
 
         if (!wantedType) {
-            throw new Error('Missing "type" property in configValidator field "' + fieldName + '"')
+            throw new Error('Missing "type" property in configValidator field "' + fieldName + '"');
         }
 
-        let realType: string = typeof field
+        let realType: string = typeof field;
 
         if (Array.isArray(field)) {
-            realType = 'array'
+            realType = 'array';
         }
 
         if (wantedType !== realType) {
-            throw new Error('Field "' + fieldName + '" have type "' + realType + '" but "' + wantedType + '" needed')
+            throw new Error('Field "' + fieldName + '" have type "' + realType + '" but "' + wantedType + '" needed');
         }
 
         if (realType === 'object') {
-            let structure = descriptor.structure
-            let of = descriptor.of
+            let structure = descriptor.structure;
+            let of = descriptor.of;
 
             if (!structure && !of) {
-                throw new Error('Missing "structure" or "of" property in configValidator field "' + fieldName + '"')
+                throw new Error('Missing "structure" or "of" property in configValidator field "' + fieldName + '"');
             }
 
-            let outObject = {}
+            let outObject = {};
             if (structure) {
-                let keys = Object.keys(structure)
+                let keys = Object.keys(structure);
                 keys.forEach((k) => {
                     if (!field.hasOwnProperty(k)) {
-                        throw new Error('Missing key "' + k + '" in field "' + fieldName + '"')
+                        throw new Error('Missing key "' + k + '" in field "' + fieldName + '"');
                     }
 
-                    outObject[k] = this.validateField(field[k], structure[k], k)
-                })
+                    outObject[k] = this.validateField(field[k], structure[k], k);
+                });
             } else if (of) {
-                let keys = Object.keys(field)
+                let keys = Object.keys(field);
                 keys.forEach((k) => {
-                    outObject[k] = this.validateField(field[k], of, fieldName + '[' + k + ']')
-                })
+                    outObject[k] = this.validateField(field[k], of, fieldName + '[' + k + ']');
+                });
             }
 
-            return outObject
+            return outObject;
         }
 
         if (realType === 'array') {
-            let of = descriptor.of
+            let of = descriptor.of;
 
             if (!of) {
-                throw new Error('Missing "of" property in configValidator field "' + fieldName + '"')
+                throw new Error('Missing "of" property in configValidator field "' + fieldName + '"');
             }
 
-            let outArray = []
+            let outArray = [];
             field.forEach((item, index) => {
-                outArray.push(this.validateField(item, of, fieldName + '[' + index + ']'))
-            })
+                outArray.push(this.validateField(item, of, fieldName + '[' + index + ']'));
+            });
 
-            return outArray
+            return outArray;
         }
 
-        return field
+        return field;
     }
 
-    protected loadedConfig: any = null
-    protected configValidator = null
+    protected loadedConfig: any = null;
+    protected configValidator = null;
 
 }

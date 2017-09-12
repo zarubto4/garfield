@@ -1,5 +1,6 @@
 import * as Rx from 'rxjs';
 import { resolve } from 'path';
+import { Logger } from 'logger';
 
 const request = require('request');
 
@@ -13,92 +14,91 @@ export class IWebSocketMessage {
     public message_id: string;
     public message_channel: string;
     public message_type: string;
-    
+
     constructor(message_type: string) {
-        this.message_id = beckiCom.uuid();
-        this.message_channel = beckiCom.WS_CHANNEL_OUT;
+        this.message_id = BeckiCom.uuid();
+        this.message_channel = BeckiCom.WS_CHANNEL_OUT;
         this.message_type = message_type;
     }
 }
 
-export class wsMesseageDeviceConnect extends IWebSocketMessage {
+export class WsMessageDeviceConnect extends IWebSocketMessage {
     device_id: string;
 
     constructor(device_id: string) {
-        super("device_connect"); //jediné, co se dopisuje je Messeage_type, ostatní se generuje v nadřazené třídě
+        super('device_connect'); // jediné, co se dopisuje je Message_type, ostatní se generuje v nadřazené třídě
         this.device_id = device_id;
     }
 }
 
-export class wsMesseageDeviceDisconnect extends IWebSocketMessage {
+export class WsMessageDeviceDisconnect extends IWebSocketMessage {
     device_id: string;
 
     constructor(device_id: string) {
-        super("device_disconnect");
+        super('device_disconnect');
         this.device_id = device_id;
     }
 }
 
-export class wsMesseageDevicePing extends IWebSocketMessage {
+export class WsMessageDevicePing extends IWebSocketMessage {
     device_id: string;
 
     constructor(device_id: string) {
-        super("device_ping");
+        super('device_ping');
         this.device_id = device_id;
     }
 }
 
-export class wsMesseageDeviceTest extends IWebSocketMessage {
+export class WsMessageDeviceTest extends IWebSocketMessage {
     device_id: string;
 
     constructor(device_id: string) {
-        super("device_test");
+        super('device_test');
         this.device_id = device_id;
     }
 }
 
-export class wsMesseageGarfieldConnect extends IWebSocketMessage {
+export class WsMessageGarfieldConnect extends IWebSocketMessage {
 
     constructor() {
-        super("garfield_connect");
+        super('garfield_connect');
     }
 }
 
-export class wsMesseageGarfieldDisconnect extends IWebSocketMessage {
+export class WsMessageGarfieldDisconnect extends IWebSocketMessage {
 
     constructor() {
-        super("garfield_disconnect");
+        super('garfield_disconnect');
     }
 }
 
-export class wsMesseageUpload extends IWebSocketMessage {//TODO přepsat a domluvit se, jak a co budeme posílat v tomto
-    data:Blob; // lepší datový typ prob.?
-    //třeba předělat
+export class WsMessageUpload extends IWebSocketMessage {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+    data: Blob; // lepší datový typ prob.?
+    // třeba předělat
     constructor() {
-        super("upload");
+        super('upload');
     }
 }
 
-export class wsMesseageGetConfurigation extends IWebSocketMessage { //get jakožto z pohledu Becki //TODO promyslet zda to necheme přejmenovat
-    confurigation:JSON; //TODO přepsat/rozepsat dle nastavení HW
-    constructor(confurigation:any) {
-        super("get_confurigation");
-        this.confurigation = confurigation;
+export class WsMessageGetConfiguration extends IWebSocketMessage { // get jakožto z pohledu Becki //TODO promyslet zda to necheme přejmenovat
+    configuration: JSON; // TODO přepsat/rozepsat dle nastavení HW
+    constructor(configuration: any) {
+        super('get_configuration');
+        this.configuration = configuration;
     }
 }
 
-
-export class wsMesseageSetConfurigation extends IWebSocketMessage {
-    confurigation: JSON; //TODO přepsat/rozepsat dle nastavení HW
+export class WsMessageSetConfiguration extends IWebSocketMessage {
+    configuration: JSON; // TODO přepsat/rozepsat dle nastavení HW
     constructor() {
-        super("set_confurigation");
+        super('set_configuration');
     }
 }
 
-export class wsMesseageForceDeviceConnection extends IWebSocketMessage {
-    confurigation: JSON; //TODO přepsat/rozepsat dle nastavení HW
+export class WsMessageForceDeviceConnection extends IWebSocketMessage {
+    confurigation: JSON; // TODO přepsat/rozepsat dle nastavení HW
     constructor() {
-        super("force_device_connect");
+        super('force_device_connect');
     }
 }
 
@@ -107,7 +107,7 @@ export interface IWebSocketToken {
     /**
      * @name websocket_token
      * @type string
-     * @description Swagger_Websocket_Token - used this token for WebSocket access. The lifetime of the token is 5 seconds. It is disposable. It can not be used twice. In the event of the expiration of the life of the disabled. 
+     * @description Swagger_Websocket_Token - used this token for WebSocket access. The lifetime of the token is 5 seconds. It is disposable. It can not be used twice. In the event of the expiration of the life of the disabled.
      * @readonly
      * @required
      */
@@ -142,12 +142,19 @@ export class RestRequest {
 
 
 
-export class beckiCom {
-
+export class BeckiCom {
 
     public static WS_CHANNEL = 'garfield';
 
     public static WS_CHANNEL_OUT = 'becki';
+
+    public static uuid(): string {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            // tslint:disable-next-line:no-bitwise
+            let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
 
     public host = '127.0.0.1:9000';
 
@@ -157,119 +164,29 @@ export class beckiCom {
 
     public requestProxyServerUrl = 'http://127.0.0.1:3000/fetch/';
 
-    private webSocketMessageQueue: IWebSocketMessage[] = [];
-
     public webSocketErrorOccurred: Rx.Subject<any> = new Rx.Subject<any>();
 
     public interactionsSchemeSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
 
-    public beckiMesseageSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
-    
+    public beckiMessageSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
 
-    private webSocket: WebSocket = null;
-
-    private webSocketReconnectTimeout: any = null;
-
-    protected websocketErrorShown: boolean = false;
-
-    private token = null;
-    //protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
     constructor() {
-        this.interactionsSchemeSubscribed.subscribe(msg => (this.getMesseage(msg)));
-        this.beckiMesseageSubscribed.subscribe(msg => (this.getDiffMesseage(msg)));
+        this.interactionsSchemeSubscribed.subscribe(msg => (this.getMessage(msg)));
+        this.beckiMessageSubscribed.subscribe(msg => (this.getDiffMessage(msg)));
     }
 
-
-    getDiffMesseage(msg: wsMesseageSetConfurigation) {
-        console.log(msg);
+    public getDiffMessage(msg: WsMessageSetConfiguration) {
+        Logger.info(msg);
     }
 
-
-    getMesseage(msg) {
-        console.log("WS: ",msg);
-    }
-
-    private websocketGetAccessToken(): Promise<IWebSocketToken> {
-        let token = ipcRenderer.sendSync('requestData');
-        console.log("token: ", token);
-        let options = {
-            method: 'GET',
-            uri: ipcRenderer.sendSync('tyrionUrl') + '/websocket/access_token',
-            body: {},
-            json: true,
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'garfield-app',
-                'x-auth-token': token
-            }
-        };
-        return rp(options);
-    }
-
-    // define function as property is needed to can set it as event listener (class methods is called with wrong this)
-    protected reconnectWebSocketAfterTimeout = () => {
-        clearTimeout(this.webSocketReconnectTimeout);
-        this.webSocketReconnectTimeout = setTimeout(() => {
-            this.connectWebSocket();
-        }, 5000);
-    }
-
-    protected disconnectWebSocket(): void {
-        if (this.webSocket) {
-            this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
-            this.webSocket.close();
-        }
-        this.webSocket = null;
-    }
-
-    public sendWebSocketMessage(message: IWebSocketMessage): void {
-        this.webSocketMessageQueue.push(message);
-        this.sendWebSocketMessageQueue();
-    }
-
-    private sendWebSocketMessageQueue(): void {
-        if (this.webSocket) {
-            this.webSocketMessageQueue.slice().forEach(message => {
-                try {
-                    this.webSocket.send(JSON.stringify(message));
-                    let i = this.webSocketMessageQueue.indexOf(message);
-                    if (i > -1) {
-                        this.webSocketMessageQueue.splice(i, 1);
-                    }
-                } catch (err) {
-                    console.error('ERR', err);
-                }
-            });
-        }
-    }
-
-
-    public requestBeckiSubscribe(): void {
-         
-            let message =new IWebSocketMessage('subscribe_garfield');
-        if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
-            this.sendWebSocketMessage(message);
-        }
-    }
-
-    private findEnqueuedWebSocketMessage(original: IWebSocketMessage, ...keys: string[]): IWebSocketMessage {
-        return this.webSocketMessageQueue.find(message => {
-            let match = true;
-            keys.forEach(key => {
-                if (!(<any>message)[key] || !(<any>original)[key] || (<any>original)[key] !== (<any>message)[key]) {
-                    match = false;
-                }
-            });
-            return match;
-        });
+    public getMessage(msg) {
+        Logger.info('WS: ', msg);
     }
 
     public connectWebSocket(): void {
-        console.log('connectWebSocket()');
-
+        Logger.info('connectWebSocket()');
 
         this.disconnectWebSocket();
-
 
         this.websocketGetAccessToken()
             .then((webSocketToken: IWebSocketToken) => {
@@ -289,7 +206,7 @@ export class beckiCom {
                         }
                         return null;
                     })
-                    .filter(message => (message && message.message_channel === beckiCom.WS_CHANNEL));
+                    .filter(message => (message && message.message_channel === BeckiCom.WS_CHANNEL));
                 let errorOccurred = Rx.Observable
                     .fromEvent(this.webSocket, 'error');
 
@@ -314,13 +231,11 @@ export class beckiCom {
 
                 channelReceived
                     .filter(message => message.status === 'error')
-                    .map(message => console.log(message))
+                    .map(message => Logger.info(message))
                     .subscribe(this.webSocketErrorOccurred);
                 channelReceived
                     .filter(message => message.message_type === 'garfield')
                     .subscribe(this.interactionsSchemeSubscribed);
-  
-
 
                 errorOccurred
                     .subscribe(this.webSocketErrorOccurred);
@@ -335,12 +250,87 @@ export class beckiCom {
             });
     }
 
-    public static uuid(): string {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            // tslint:disable-next-line:no-bitwise
-            let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
+    public requestBeckiSubscribe(): void {
+        let message = new IWebSocketMessage('subscribe_garfield');
+        if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
+            this.sendWebSocketMessage(message);
+        }
+    }
+
+    public sendWebSocketMessage(message: IWebSocketMessage): void {
+        this.webSocketMessageQueue.push(message);
+        this.sendWebSocketMessageQueue();
+    }
+
+    // define function as property is needed to can set it as event listener (class methods is called with wrong this)
+    protected reconnectWebSocketAfterTimeout = () => {
+        clearTimeout(this.webSocketReconnectTimeout);
+        this.webSocketReconnectTimeout = setTimeout(() => {
+            this.connectWebSocket();
+        }, 5000);
+    }
+
+    protected disconnectWebSocket(): void {
+        if (this.webSocket) {
+            this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
+            this.webSocket.close();
+        }
+        this.webSocket = null;
+    }
+
+    private sendWebSocketMessageQueue(): void {
+        if (this.webSocket) {
+            this.webSocketMessageQueue.slice().forEach(message => {
+                try {
+                    this.webSocket.send(JSON.stringify(message));
+                    let i = this.webSocketMessageQueue.indexOf(message);
+                    if (i > -1) {
+                        this.webSocketMessageQueue.splice(i, 1);
+                    }
+                } catch (err) {
+                    console.error('ERR', err);
+                }
+            });
+        }
+    }
+
+    private findEnqueuedWebSocketMessage(original: IWebSocketMessage, ...keys: string[]): IWebSocketMessage {
+        return this.webSocketMessageQueue.find(message => {
+            let match = true;
+            keys.forEach(key => {
+                if (!(<any>message)[key] || !(<any>original)[key] || (<any>original)[key] !== (<any>message)[key]) {
+                    match = false;
+                }
+            });
+            return match;
         });
     }
 
+    private websocketGetAccessToken(): Promise<IWebSocketToken> {
+        let token = ipcRenderer.sendSync('requestData');
+        Logger.info('token: ', token);
+        let options = {
+            method: 'GET',
+            uri: ipcRenderer.sendSync('tyrionUrl') + '/websocket/access_token',
+            body: {},
+            json: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'garfield-app',
+                'x-auth-token': token
+            }
+        };
+        return rp(options);
+    }
+
+    protected websocketErrorShown: boolean = false;
+
+    private webSocketMessageQueue: IWebSocketMessage[] = [];
+
+    private webSocket: WebSocket = null;
+
+    private webSocketReconnectTimeout: any = null;
+
+    private token = null;
+    // protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
 }
