@@ -1,6 +1,9 @@
 import * as Rx from 'rxjs';
 import { resolve } from 'path';
 import { Logger } from 'logger';
+import * as WebSocket from 'ws';
+import { EventEmitter } from 'events';
+import { ConfigManager } from '../utils/ConfigManager';
 
 const request = require('request');
 
@@ -16,9 +19,29 @@ export class IWebSocketMessage {
     public message_type: string;
 
     constructor(message_type: string) {
-        this.message_id = BeckiCom.uuid();
-        this.message_channel = BeckiCom.WS_CHANNEL_OUT;
+        this.message_id = Becki.uuid();
+        this.message_channel = Becki.WS_CHANNEL_OUT;
         this.message_type = message_type;
+    }
+}
+
+export class WsMessageError extends IWebSocketMessage {
+    status: string;
+    message: string;
+
+    constructor(message_type: string, error_message: string) {
+        super(message_type); // jediné, co se dopisuje je Message_type, ostatní se generuje v nadřazené třídě
+        this.status = 'error';
+        this.message = error_message;
+    }
+}
+
+export class WsMessageSuccess extends IWebSocketMessage {
+    status: string;
+
+    constructor(message_type: string) {
+        super(message_type);
+        this.status = 'success';
     }
 }
 
@@ -26,7 +49,7 @@ export class WsMessageDeviceConnect extends IWebSocketMessage {
     device_id: string;
 
     constructor(device_id: string) {
-        super('device_connect'); // jediné, co se dopisuje je Message_type, ostatní se generuje v nadřazené třídě
+        super('device_connect');
         this.device_id = device_id;
     }
 }
@@ -72,11 +95,11 @@ export class WsMessageGarfieldDisconnect extends IWebSocketMessage {
     }
 }
 
-export class WsMessageUpload extends IWebSocketMessage {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
-    data: Blob; // lepší datový typ prob.?
-    // třeba předělat
+export class WsMessageDeviceBinary extends IWebSocketMessage {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+    data: string; // base64 string
+    type: string; // bootloader or firmware
     constructor() {
-        super('upload');
+        super('device_binary');
     }
 }
 
@@ -88,15 +111,14 @@ export class WsMessageGetConfiguration extends IWebSocketMessage { // get jakož
     }
 }
 
-export class WsMessageSetConfiguration extends IWebSocketMessage {
+export class WsMessageDeviceConfigure extends IWebSocketMessage {
     configuration: JSON; // TODO přepsat/rozepsat dle nastavení HW
     constructor() {
-        super('set_configuration');
+        super('device_configure');
     }
 }
 
 export class WsMessageForceDeviceConnection extends IWebSocketMessage {
-    confurigation: JSON; // TODO přepsat/rozepsat dle nastavení HW
     constructor() {
         super('force_device_connect');
     }
@@ -142,11 +164,11 @@ export class RestRequest {
 
 
 
-export class BeckiCom {
+export class Becki extends EventEmitter {
 
     public static WS_CHANNEL = 'garfield';
 
-    public static WS_CHANNEL_OUT = 'becki';
+    public static WS_CHANNEL_OUT = 'garfield';
 
     public static uuid(): string {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -162,6 +184,8 @@ export class BeckiCom {
 
     public wsProtocol = 'ws';
 
+    public authToken: string;
+
     public requestProxyServerUrl = 'http://127.0.0.1:3000/fetch/';
 
     public webSocketErrorOccurred: Rx.Subject<any> = new Rx.Subject<any>();
@@ -170,12 +194,14 @@ export class BeckiCom {
 
     public beckiMessageSubscribed: Rx.Subject<any> = new Rx.Subject<any>();
 
-    constructor() {
+    constructor(authToken: string) {
+        super();
+        this.authToken = authToken;
         this.interactionsSchemeSubscribed.subscribe(msg => (this.getMessage(msg)));
         this.beckiMessageSubscribed.subscribe(msg => (this.getDiffMessage(msg)));
     }
 
-    public getDiffMessage(msg: WsMessageSetConfiguration) {
+    public getDiffMessage(msg: WsMessageDeviceConfigure) {
         Logger.info(msg);
     }
 
@@ -190,8 +216,8 @@ export class BeckiCom {
 
         this.websocketGetAccessToken()
             .then((webSocketToken: IWebSocketToken) => {
+                Logger.info('Access token:', webSocketToken.websocket_token);
                 this.websocketErrorShown = false;
-
                 this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/becki/${webSocketToken.websocket_token}`);
                 this.webSocket.addEventListener('close', this.reconnectWebSocketAfterTimeout);
                 let opened = Rx.Observable
@@ -206,12 +232,13 @@ export class BeckiCom {
                         }
                         return null;
                     })
-                    .filter(message => (message && message.message_channel === BeckiCom.WS_CHANNEL));
+                    .filter(message => (message && message.message_channel === Becki.WS_CHANNEL));
                 let errorOccurred = Rx.Observable
                     .fromEvent(this.webSocket, 'error');
 
                 opened.subscribe(anything => {
                     this.requestBeckiSubscribe();
+                    this.emit('open');
                 });
                 opened
                     .subscribe(() => this.sendWebSocketMessageQueue());
@@ -233,9 +260,14 @@ export class BeckiCom {
                     .filter(message => message.status === 'error')
                     .map(message => Logger.info(message))
                     .subscribe(this.webSocketErrorOccurred);
+
                 channelReceived
                     .filter(message => message.message_type === 'garfield')
                     .subscribe(this.interactionsSchemeSubscribed);
+
+                channelReceived
+                    .filter(message => message.message_type !== 'ping')
+                    .subscribe(message => this.emit(message.message_type, message)); // All messages except ping are emitted and caught by listeners
 
                 errorOccurred
                     .subscribe(this.webSocketErrorOccurred);
@@ -246,11 +278,13 @@ export class BeckiCom {
                     this.websocketErrorShown = true;
                     this.webSocketErrorOccurred.next(error);
                 }
+                Logger.error('Reconecting - error occured:', error.message);
                 this.reconnectWebSocketAfterTimeout();
             });
     }
 
     public requestBeckiSubscribe(): void {
+        Logger.info('Requesting subscription');
         let message = new IWebSocketMessage('subscribe_garfield');
         if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
             this.sendWebSocketMessage(message);
@@ -262,20 +296,20 @@ export class BeckiCom {
         this.sendWebSocketMessageQueue();
     }
 
+    public disconnectWebSocket(): void {
+        if (this.webSocket) {
+            this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
+            this.webSocket.close();
+        }
+        this.webSocket = null;
+    }
+
     // define function as property is needed to can set it as event listener (class methods is called with wrong this)
     protected reconnectWebSocketAfterTimeout = () => {
         clearTimeout(this.webSocketReconnectTimeout);
         this.webSocketReconnectTimeout = setTimeout(() => {
             this.connectWebSocket();
         }, 5000);
-    }
-
-    protected disconnectWebSocket(): void {
-        if (this.webSocket) {
-            this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
-            this.webSocket.close();
-        }
-        this.webSocket = null;
     }
 
     private sendWebSocketMessageQueue(): void {
@@ -307,17 +341,17 @@ export class BeckiCom {
     }
 
     private websocketGetAccessToken(): Promise<IWebSocketToken> {
-        let token = ipcRenderer.sendSync('requestData');
-        Logger.info('token: ', token);
+        Logger.info('token: ', this.authToken);
         let options = {
             method: 'GET',
-            uri: ipcRenderer.sendSync('tyrionUrl') + '/websocket/access_token',
+            uri: (ConfigManager.config.get<boolean>('tyrionSecured') ? 'https://' : 'http://') +
+                ConfigManager.config.get<string>('tyrionHost').trim() + '/websocket/access_token',
             body: {},
             json: true,
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': 'garfield-app',
-                'x-auth-token': token
+                'x-auth-token': this.authToken
             }
         };
         return rp(options);

@@ -1,4 +1,4 @@
-import { Serial } from '../communication/serial/SerialHandler';
+import { Serial } from '../communication/Serial';
 import { Logger } from 'logger';
 
 enum TestStep {

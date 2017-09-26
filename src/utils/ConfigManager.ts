@@ -18,6 +18,8 @@ export class ConfigManager {
      *
      **************************************/
 
+    public static config: ConfigManager;
+
     /**
      * Config loggers target, colors and level from loggersConfig
      *
@@ -44,7 +46,16 @@ export class ConfigManager {
 
     }
 
-
+    public static loadConfig(path: string) {
+        // init ConfigManager - if anything fail, exit program
+        try {
+            ConfigManager.config = new ConfigManager(path, ConfigManager.validator);
+            ConfigManager.configLoggers(ConfigManager.config.get('loggers'));
+        } catch (e) {
+            Logger.error('ConfigManager init failed with', e.toString());
+            process.exit();
+        }
+    }
 
     /**
      * Constructor needs configPath (relative to homer-core directory or absolute) and configValidator object
@@ -178,6 +189,52 @@ export class ConfigManager {
         return null;
     }
 
+    private static validator = {
+        type: 'object',
+        structure: {
+            tyrionHost: {
+                type: 'string'
+            },
+            tyrionSecured: {
+                type: 'boolean'
+            },
+            tyrionReconnectTimeout: {
+                type: 'number'
+            },
+            serial: {
+                type: 'object',
+                structure: {
+                    baudRate: {
+                        type: 'number'
+                    },
+                    ctsrts: {
+                        type: 'boolean'
+                    },
+                    crc: {
+                        type: 'boolean'
+                    }
+                }
+            },
+            loggers: {
+                type: 'object',
+                of: {
+                    type: 'object',
+                    structure: {
+                        level: {
+                            type: 'string'
+                        },
+                        colors: {
+                            type: 'boolean'
+                        },
+                        target: {
+                            type: 'string'
+                        }
+                    }
+                }
+            },
+        }
+    };
+
     /**
      * Validate configObject and set it to loadedConfig
      *
@@ -261,5 +318,4 @@ export class ConfigManager {
 
     protected loadedConfig: any = null;
     protected configValidator = null;
-
 }

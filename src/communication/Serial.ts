@@ -31,7 +31,7 @@ export class Serial extends EventEmitter {
         this.connect(callback);
     }*/
 
-    public connect(callback) {
+    public connect() {
 
         let opened_connections: SerialPort[] = []; // Reference for all opened connections
 
@@ -41,12 +41,12 @@ export class Serial extends EventEmitter {
 
             if (listError) {
                 Logger.error(listError);
-                callback(listError.message);
+                this.emit('connection_error', listError.message);
                 return;
             }
 
             if (ports.length === 0) {
-                callback('No device detected');
+                this.emit('connection_error', 'No device detected');
                 return;
             }
 
@@ -57,7 +57,7 @@ export class Serial extends EventEmitter {
                 let temp_connection: SerialPort = new SerialPort(port.comName, {baudRate: 115200, rtscts: true}, (connectionError: any) => {
                     if (connectionError) {
                         Logger.error(connectionError);
-                        callback(connectionError.message);
+                        // this.emit('connection_error', connectionError.message);
                     } else {
                         Logger.info('Connected to ' + temp_connection.path);
                         opened_connections.push(temp_connection); // Keeping reference to current connection
@@ -74,7 +74,7 @@ export class Serial extends EventEmitter {
                 if (index === ports.lenght - 1) {
                     lastConnectionTimout = setTimeout(() => {
                         this.connectionCleanUp(opened_connections);
-                        callback('TimeOut - No desirable device detected or responded');
+                        this.emit('connection_error', 'TimeOut - No desirable device detected or responded');
                     }, 15000);
                 }
 
@@ -104,8 +104,8 @@ export class Serial extends EventEmitter {
                         this.connection = temp_connection;
                         this.parser = this.connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' }));
                         this.parser.on('data', (message) => {
-                            if (!message.startsWith('*')) {
-                                if (!Serial.checkCrc(message.trim())) {
+                            if (!message.startsWith('*')) { // Filetring out comments
+                                if (!Serial.checkCrc(message.trim())) { // Checking CRC checksum
                                     this.emit('error', 'Data broken - CRC checksum is invalid');
                                 } else {
                                     message = message.substring(0, message.lastIndexOf('#')); // Removes the CRC checksum
@@ -114,13 +114,13 @@ export class Serial extends EventEmitter {
                             }
                         });
 
-                        this.once('connect', () => {
+                        this.once('connected', () => {
+                            this.send('TK3G:yoda_bootloader')
                             this.blink(5, 150);
                         });
 
                         this.connectionCleanUp(opened_connections);
-                        this.emit('connect');
-                        callback();
+                        this.emit('connected');
                     }
                 });
             });
@@ -145,6 +145,16 @@ export class Serial extends EventEmitter {
                 this.connection.write(message + '#' + Serial.crc(message) + '\r\n');
             }, 25);
         }
+    }
+
+    public sendWithResponse(message: string, callback: (response: string, err?: string) => void) {
+        this.once('message', (msg) => {
+            if (Serial.getMessageType(message) === Serial.getMessageType(msg)) {
+                callback(Serial.getMessageValue(msg));
+            } else {
+                callback(null, 'Error getting the response.')
+            }
+        });
     }
 
     public ping() {

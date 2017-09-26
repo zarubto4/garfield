@@ -1,11 +1,11 @@
 // import { ipcRenderer } from 'electron'
-import { BeckiCom, WsMessageDeviceConnect, WsMessageDeviceDisconnect } from '../communication/beckiHandler';
+import { Becki, WsMessageDeviceConnect, WsMessageDeviceDisconnect } from '../communication/Becki';
 import { ipcRenderer }  from 'electron';
 
 const pingBtn = document.getElementById('ping');
 const websocketBtn = document.getElementById('websocket-start');
 
-let myBecki = new BeckiCom();
+let myBecki = new Becki(ipcRenderer.sendSync('requestData'));
 
 document.getElementById('link-configuration').addEventListener('click', () => {
     ipcRenderer.send('window', 'configuration');

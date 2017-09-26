@@ -1,4 +1,4 @@
-import { Serial } from '../communication/serial/SerialHandler';
+import { Serial } from '../communication/Serial';
 import { Logger } from 'logger';
 import { Queue } from '../utils/Queue';
 
@@ -17,29 +17,25 @@ export class Configurator {
 
     public connection: Serial;
 
-    constructor(serialConnection: Serial) {
+    constructor(config: any, serialConnection: Serial) {
         this.connection = serialConnection;
+        this.config = config;
     }
 
     public connect(connectionCallback, messageCallback) {
-        /*this.connection = new Serial((err) => {
-
-            if (err) {
-                connectionCallback(err);
-                return;
-            }
-
-        });*/
 
         this.connection = new Serial();
-        this.connection.on('connect', () => {
+        this.connection.once('connected', () => {
             Logger.info('Configurator aquired a connection');
         });
 
         this.messageCallback = messageCallback;
-        this.connection.on('message', this.messageCallback);
+        this.connection
+            .on('message', this.messageCallback)
+            .once('connected', connectionCallback)
+            .once('connection_error', connectionCallback);
 
-        this.connection.connect(connectionCallback);
+        this.connection.connect();
     }
 
     public beginConfiguration(callback: (configurationError?: string) => void) {

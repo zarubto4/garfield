@@ -1,176 +1,57 @@
+import { app, session, ipcMain, nativeImage, BrowserWindow, Tray, Menu, MenuItem, Notification } from 'electron';
 import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
-import { Serial } from './communication/serial/SerialHandler';
 import { ConfigManager } from './utils/ConfigManager';
-import { app, ipcMain, BrowserWindow, Tray, Menu, MenuItem} from 'electron';
+import { Serial } from './communication/Serial';
 import * as drivelist from 'drivelist';
-import * as fs from 'fs';
-import { Device } from './device/Device';
-import { Tester } from './device/Tester';
-import { Configurator } from './device/Configurator';
+import { Garfield } from './Garfield';
+import * as path from 'path';
+import * as url from 'url';
+import * as usb from 'usb';
 
-const path = require('path');
-const url = require('url');
-const usb = require('usb');
-
-const configValidator = {
-    type: 'object',
-    structure: {
-        tyrionHost: {
-            type: 'string'
-        },
-        tyrionSecured: {
-            type: 'boolean'
-        },
-        tyrionReconnectTimeout: {
-            type: 'number'
-        },
-        serial: {
-            type: 'object',
-            structure: {
-                baudRate: {
-                    type: 'number'
-                },
-                ctsrts: {
-                    type: 'boolean'
-                },
-                crc: {
-                    type: 'boolean'
-                }
-            }
-        },
-        loggers: {
-            type: 'object',
-            of: {
-                type: 'object',
-                structure: {
-                    level: {
-                        type: 'string'
-                    },
-                    colors: {
-                        type: 'boolean'
-                    },
-                    target: {
-                        type: 'string'
-                    }
-                }
-            }
-        },
-    }
-};
-
+const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let mainWindow;
+let window;
 let tray;
-let authToken: string;
-let configPath = 'config/default.json';
-let devices: Device[] = [];
+let icon = nativeImage.createFromPath(path.join(__dirname, '../byzance_logo.png'));
 
-// init ConfigManager - if anything fail, exit program
-let configManager: ConfigManager = null;
-try {
-    configManager = new ConfigManager(configPath, configValidator);
-    ConfigManager.configLoggers(configManager.get('loggers'));
-} catch (e) {
-    Logger.error('ConfigManager init failed with', e.toString());
-    process.exit();
-}
+garfield.on('websocket_open', notification);
 
-Logger.info('Config:', configManager.config);
+function start() {
 
-function createWindow () {
-
-    Logger.warn('Creating window');
-
-    // Create the browser window.
-    mainWindow = new BrowserWindow({show: false});
-    tray = new Tray(path.join(__dirname, '../byzance_logo.png'));
+    tray = new Tray(icon);
     tray.setToolTip('Garfield App');
 
     renderTrayContextMenu();
 
-    mainWindow.on('ready-to-show', () => {
-        mainWindow.maximize();
-        mainWindow.show();
-    });
-
-    Logger.warn('New browser window');
-
-    Logger.warn(__dirname);
-
-    if (authToken) {
-
-        mainWindow.loadURL(url.format({
-            pathname: path.join(__dirname, '../views/index.html'),
-            protocol: 'file:',
-            slashes: true
-        }));
-
-    } else {
-
-        mainWindow.loadURL(url.format({
-            pathname: path.join(__dirname, '../views/login.html'),
-            protocol: 'file:',
-            slashes: true
-        }));
-    }
-
-
-    // Open the DevTools.
-    mainWindow.webContents.openDevTools();
-
-    // Emitted when the window is closed.
-    mainWindow.on('closed', function () {
-        // Dereference the window object, usually you would store windows
-        // in an array if your app supports multi windows, this is the time
-        // when you should delete the corresponding element.
-        mainWindow = null;
-    });
+    notification('Garfield has started.');
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
-
-// Quit when all windows are closed.
-app.on('window-all-closed', function () {
-    // On OS X it is common for applications and their menu bar
-    // to stay active until the user quits explicitly with Cmd + Q
-    if (process.platform !== 'darwin') {
-        // app.quit();
-    }
-});
-
-app.on('activate', function () {
-    // On OS X it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (mainWindow === null) {
-        createWindow();
-    }
-});
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+app.on('ready', start);
 
 ipcMain.on('login', (event, token) => {
-    authToken = token;
 
-    Logger.warn(authToken);
+    Logger.warn(token);
 
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, '../views/index.html'),
-        protocol: 'file:',
-        slashes: true
-    }));
+    if (window) {
+        window.close();
+        window = null;
+    }
+
+    garfield.init(token);
+
+    renderTrayContextMenu(); 
 });
 
-ipcMain.on('window', (event, window: string) => {
+ipcMain.on('window', (event, win: string) => {
 
-    switch (window) {
+    switch (win) {
         case 'configuration': {
-            mainWindow.loadURL(url.format({
+            window.loadURL(url.format({
                 pathname: path.join(__dirname, '../views/configuration.html'),
                 protocol: 'file:',
                 slashes: true
@@ -179,7 +60,7 @@ ipcMain.on('window', (event, window: string) => {
         }
 
         case 'home': {
-            mainWindow.loadURL(url.format({
+            window.loadURL(url.format({
                 pathname: path.join(__dirname, '../views/index.html'),
                 protocol: 'file:',
                 slashes: true
@@ -194,11 +75,11 @@ ipcMain.on('window', (event, window: string) => {
 });
 
 ipcMain.on('config', (event) => {
-    event.returnValue = configManager.config();
+    event.returnValue = ConfigManager.config.config();
 });
 
 ipcMain.on('configManager', (event) => {
-    event.returnValue = configManager;
+    event.returnValue = ConfigManager.config;
 });
 
 ipcMain.on('tyrionUrl', (event) => {
@@ -206,40 +87,44 @@ ipcMain.on('tyrionUrl', (event) => {
 });
 
 ipcMain.on('requestData', (event, requestedData) => {
- // if (requestedData=== "login"){
-    Logger.info(authToken);
-    event.returnValue = authToken;
- // }
+    event.returnValue = garfield.getAuth();
 });
 
 function getTyrionUrl(): string {
 
     Logger.info('getTyrionUrl: getting url');
 
-    let host = configManager.get<string>('tyrionHost').trim();
-    let secured = configManager.get<boolean>('tyrionSecured');
+    let host = ConfigManager.config.get<string>('tyrionHost').trim();
+    let secured = ConfigManager.config.get<boolean>('tyrionSecured');
     let protocol = (secured ? 'https://' : 'http://');
 
     return protocol + host;
 }
 
 usb.on('attach', function(device) {
-    Logger.warn('Device was connected. ' + JSON.stringify(device));
+    Logger.warn('USB attached');
     renderTrayContextMenu();
 });
 
-usb.on('detach', function(device) {
-    Logger.warn('Device was disconnected. ' + JSON.stringify(device));
-});
+function notification(message) {
+    let notification = new Notification({
+        title: 'Garfield',
+        subtitle: '',
+        body: message,
+        actions: [],
+        icon: icon
+    });
+
+    notification.show();
+}
 
 function clickMenuItem(menuItem, browserWindow, event) {
-    Logger.info('Click on button');
-    Logger.info(menuItem);
+    Logger.info('Click on button: ', menuItem.id);
 
     switch (menuItem.id) {
         case 'login': {
-            // mainWindow = new BrowserWindow({useContentSize: true, icon: path.join(__dirname, '../byzance_logo.png')});
-            mainWindow.loadURL(url.format({
+            window = new BrowserWindow({height: 150, width: 300, icon: icon});
+            window.loadURL(url.format({
                 pathname: path.join(__dirname, '../views/login.html'),
                 protocol: 'file:',
                 slashes: true
@@ -247,18 +132,23 @@ function clickMenuItem(menuItem, browserWindow, event) {
             break;
         }
         case 'connect': {
-
-            // addDevice();
+            
             break;
         }
         case 'configure': {
-
-            // addDevice();
+            if (garfield.hasDevice()) {
+                garfield.configure();
+            } else {
+                notification('No device connected!');
+            }
             break;
         }
         case 'test': {
-
-            // addDevice();
+            if (garfield.hasDevice()) {
+                garfield.test();
+            } else {
+                notification('No device connected!');
+            }
             break;
         }
         case 'quit': {
@@ -271,7 +161,7 @@ function clickMenuItem(menuItem, browserWindow, event) {
             break;
     }
 }
-
+/*
 function addDevice(mountpoint: string) {
 
     Logger.info('Adding new device');
@@ -312,19 +202,10 @@ function addDevice(mountpoint: string) {
             }
         });
     });
-}
+}*/
 
 function selectDrive(menuItem, browserWindow, event) {
-    Logger.info('Device is new, connecting to ' + menuItem.id);
-
-    let serial: Serial = new Serial();
-
-    let device: Device;
-
-    serial.on('connected' , () => {
-        device = new Device(menuItem.id, menuItem.id, serial);
-        devices.push(device);
-    });
+    garfield.connectDevice(menuItem.id);
 }
 
 function renderTrayContextMenu() {
@@ -357,17 +238,17 @@ function renderTrayContextMenu() {
 
         let template: any[] = [];
 
-        if (authToken) {
+        if (garfield.hasAuth()) {
             template.push({id: 'login', label: 'Login', type: 'normal', click: clickMenuItem});
         } else {
             template.push({id: 'logout', label: 'Logout', type: 'normal', click: clickMenuItem});
         }
 
         template.push({type: 'separator'});
-        template.push({id: 'connect', label: 'Connect device', type: 'normal', click: clickMenuItem});
+        template.push({id: 'connect', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
         template.push({label: 'Select drive', submenu: submenu});
 
-        if (devices.length === 0) {
+        if (garfield.devices.length === 0) {
             template.push({id: 'configure', label: 'Configure', type: 'normal', click: clickMenuItem, enabled: false});
             template.push({id: 'test', label: 'Test', type: 'normal', click: clickMenuItem, enabled: false});
         } else {

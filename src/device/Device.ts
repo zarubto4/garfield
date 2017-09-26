@@ -1,8 +1,9 @@
-import { Serial } from '../communication/serial/SerialHandler';
+import { Serial } from '../communication/Serial';
 import * as fs from 'fs';
 import { Logger } from 'logger';
 import { Configurator } from './Configurator';
 import { Tester } from './Tester';
+import * as Promise from 'promise'
 
 export class Device {
 
@@ -18,6 +19,18 @@ export class Device {
         return this.path;
     }
 
+    public getFullId(): Promise<string> {
+        return new Promise((resolve, reject) => {
+            this.serial.sendWithResponse('YODA:fullid', (res: string, err: string) => {
+                if (err) {
+                    reject(err);
+                } else if (res) {
+                    resolve(res);
+                }
+            });
+        });
+    }
+
     public hasSerialConenction(): boolean {
         return this.serial && this.serial.isOpen();
     }
@@ -26,8 +39,8 @@ export class Device {
         return this.path ? true : false;
     }
 
-    public configure(callback: (err?) => void): void {
-        let configurator: Configurator = new Configurator(this.serial);
+    public configure(config: any, callback: (err?) => void): void {
+        let configurator: Configurator = new Configurator(config, this.serial);
         configurator.beginConfiguration(callback);
     }
 
@@ -51,7 +64,7 @@ export class Device {
     }
 
     private writeDataToFlash(filename: string, data: string, callback: (err) => void) {
-        fs.writeFile(this.path + '/' + filename, data, callback);
+        fs.writeFile(this.path + '/' + filename, Buffer.from(data, 'base64'), callback);
     }
 
 

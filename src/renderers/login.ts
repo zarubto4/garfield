@@ -3,7 +3,7 @@
 // All of the Node.js APIs are available in this process.
 
 import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
-import { Serial } from '../communication/serial/SerialHandler';
+import { Serial } from '../communication/Serial';
 
 const request = require('request');
 const {ipcRenderer} = require('electron');

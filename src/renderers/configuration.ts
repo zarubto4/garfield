@@ -14,7 +14,7 @@ let configurator: Configurator;
 connectBtn.addEventListener('click', () => {
 
     if (!configurator) {
-        configurator = new Configurator(null);
+        configurator = new Configurator(null, null);
         configurator.connect((err: string) => {
 
             if (err) {
