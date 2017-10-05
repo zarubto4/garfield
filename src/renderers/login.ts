@@ -14,6 +14,7 @@ const pingBtn: HTMLElement = document.getElementById('ping');
 
 let mail: string;
 let password: string;
+let remember: boolean;
 
 form.addEventListener('submit', function(event) {
 
@@ -21,6 +22,7 @@ form.addEventListener('submit', function(event) {
 
     mail = (<HTMLInputElement>document.getElementById('mail')).value;
     password = (<HTMLInputElement>document.getElementById('password')).value;
+    remember = (<HTMLInputElement>document.getElementById('remember')).checked;
 
     if (mail || password) {
 
@@ -47,7 +49,7 @@ form.addEventListener('submit', function(event) {
                 if (response.statusCode !== 200) {
                     alert('Error: status = ' + body.code + ' response = ' + body.message);
                 } else {
-                    ipcRenderer.send('login', body.authToken);
+                    ipcRenderer.send(remember ? 'login_remember' : 'login', body.authToken);
                 }
             }
         });

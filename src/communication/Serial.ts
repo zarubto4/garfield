@@ -109,14 +109,19 @@ export class Serial extends EventEmitter {
                                     this.emit('error', 'Data broken - CRC checksum is invalid');
                                 } else {
                                     message = message.substring(0, message.lastIndexOf('#')); // Removes the CRC checksum
-                                    this.emit('message', message);
+                                    if (Serial.getMessageType(message) === 'btn') {
+                                        this.emit('button');
+                                    } else {
+                                        this.emit('message', message);
+                                    }
                                 }
                             }
                         });
 
                         this.once('connected', () => {
-                            this.send('TK3G:yoda_bootloader')
-                            this.blink(5, 150);
+                            this.sendWithResponse('TK3G:yoda_bootloader', (response: string, err?: string) => {
+                                this.blink(5, 150);
+                            });
                         });
 
                         this.connectionCleanUp(opened_connections);
@@ -148,13 +153,27 @@ export class Serial extends EventEmitter {
     }
 
     public sendWithResponse(message: string, callback: (response: string, err?: string) => void) {
-        this.once('message', (msg) => {
+
+        let timeout;
+
+        let messageListener = (msg) => {
+            if (timeout) {
+                clearTimeout(timeout);
+            }
             if (Serial.getMessageType(message) === Serial.getMessageType(msg)) {
                 callback(Serial.getMessageValue(msg));
             } else {
-                callback(null, 'Error getting the response.')
+                callback(null, 'Error getting the response.');
             }
-        });
+        };
+
+        timeout = setTimeout(() => {
+            this.removeListener('message', messageListener);
+            callback(null, 'Timeout for response.');
+        }, 10000);
+
+        this.once('message', messageListener);
+        this.send(message);
     }
 
     public ping() {

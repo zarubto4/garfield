@@ -1,10 +1,13 @@
-import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinary, WsMessageError, WsMessageSuccess, WsMessageDeviceConfigure, WsMessageDeviceTest } from './communication/Becki';
+import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinary, WsMessageError,
+    WsMessageSuccess, WsMessageDeviceConfigure, WsMessageTesterConnect,
+    WsMessageTesterDisconnect, WsMessageDeviceBinaryResult } from './communication/Becki';
 import { ConfigManager } from './utils/ConfigManager';
 import { Configurator } from './device/Configurator';
 import { Serial } from './communication/Serial';
 import { Device } from './device/Device';
 import { Tester } from './device/Tester';
 import { EventEmitter } from 'events';
+import * as request from 'request';
 import { Logger } from 'logger';
 
 export class Garfield extends EventEmitter {
@@ -15,7 +18,7 @@ export class Garfield extends EventEmitter {
      *                                    *
      **************************************/
 
-    public devices: Device[] = []; // Array of connected devices
+    public device: Device; // Array of connected devices
 
     constructor() {
         super();
@@ -29,7 +32,13 @@ export class Garfield extends EventEmitter {
         this.becki = new Becki(token);
 
         this.becki
-            .once('open', () => { this.emit('websocket_open', 'Becki is connected.'); })
+            .once('open', () => {
+                this.emit('websocket_open', 'Becki is connected.');
+                this.keepAliveBecki = setInterval(() => {
+                    this.becki.sendWebSocketMessage(new IWebSocketMessage('keepalive'));
+                }, 5000);
+            })
+            .on('subscribe_becki', this.messageHandler)
             .on('device_configure', this.messageHandler)
             .on('device_test', this.messageHandler)
             .on('device_binary', this.messageHandler);
@@ -37,28 +46,51 @@ export class Garfield extends EventEmitter {
         this.becki.connectWebSocket();
     }
 
-    public connectDevice(drive: string): void {
+    public connectTester(drive: string): void {
         Logger.info('Device is new, connecting to ' + drive);
 
         let serial: Serial = new Serial();
 
-        let device: Device;
+        let temp_device: Device;
 
         serial.once('connected' , () => {
-            device = new Device(drive, drive, serial);
-            this.devices.push(device);
-            device.getFullId().then((fullid: string) => {
-                this.becki.sendWebSocketMessage(new WsMessageDeviceConnect(fullid));
-            });
+            temp_device = new Device(drive, drive, serial);
+            this.device = temp_device;
+            this.becki.sendWebSocketMessage(new WsMessageTesterConnect('TK3G'));
+            this.setDevicetDetection();
+            this.emit('tester_connected');
+
         }).once('connection_error', (err) => {
             Logger.error(err);
+
+        }).on('button', () => {
+            this.checkIoda();
         });
 
         serial.connect();
     }
 
-    public hasDevice(): boolean {
-        return this.devices.length > 0;
+    public disconnectTester(): void {
+        if (this.hasTester()) {
+            clearInterval(this.deviceDetection);
+            this.device.disconnect(() => {
+                this.device = null;
+                this.emit('tester_disconnected');
+                this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
+            });
+        }
+    }
+
+    public hasTester(): boolean {
+        return this.device ? true : false;
+    }
+
+    public hasBecki(): boolean {
+        return this.becki ? true : false;
+    }
+
+    public reconnectBecki(): void {
+        this.becki.connectWebSocket();
     }
 
     public getAuth(): string {
@@ -70,102 +102,173 @@ export class Garfield extends EventEmitter {
     }
 
     public configure(): void {
-        this.devices[0].configure({},() => {
+        this.device.configure({}, () => {
             Logger.info('Configured');
         });
     }
 
     public test(): void {
-        this.devices[0].test(() => {
+        this.device.test(() => {
             Logger.info('Tested');
         });
     }
 
     public shutdown() {
+        this.becki.sendWebSocketMessage(new IWebSocketMessage('unsubscribe_garfield'));
         this.becki.disconnectWebSocket();
     }
 
+    private checkIoda() {
+        if (this.deviceDetection) {
+            clearInterval(this.deviceDetection);
+        }
+        Logger.info('Checking for Ioda');
+        this.device.ioda_connected = true;
+        this.device.message('TK3G:yoda_bootloader').then((response: string) => {
+            if (response === 'ok') {
+                Logger.info('Opened bootloader, asking for full_id');
+                this.device.message('YODA:fullid').then((full_id: string) => {
+                    Logger.info('Got full_id: ' + full_id);
+                    this.becki.sendWebSocketMessage(new WsMessageDeviceConnect(full_id)); // Connected device has at least bootloader
+                }, (err) => {
+                    this.becki.sendWebSocketMessage(new WsMessageDeviceConnect(null)); // Connected device is dead, probably brand new
+                });
+            }
+
+            this.setDevicetDetection();
+        }).catch((err) => {
+            // TODO tester not responding
+        });
+    }
+
     private message(message: IWebSocketMessage): void {
-        Logger.info('Got message: ', JSON.stringify(message));
 
-        let response: IWebSocketMessage;
-
-        let respond = () => {
-            if (response) {
-                response.message_id = message.message_id;
-                this.becki.sendWebSocketMessage(response);
+        let respond = (msg: IWebSocketMessage) => {
+            if (msg) {
+                msg.message_id = message.message_id;
+                Logger.info('Responding with: ' + JSON.stringify(msg));
+                this.becki.sendWebSocketMessage(msg);
+            }
+            if (this.hasTester()) {
+                this.setDevicetDetection();
             }
         };
 
+        if (!this.hasTester() && message.message_type !== 'subscribe_becki') {
+            respond(new WsMessageError(message.message_type, 'No device is connected'));
+            return;
+        }
+
+        if (this.hasTester()) {
+            clearInterval(this.deviceDetection);
+        }
+
         switch (message.message_type) {
+            case 'subscribe_becki': {
+                respond(new IWebSocketMessage('subscribe_garfield'));
+                if (this.hasTester()) {
+                    this.becki.sendWebSocketMessage(new WsMessageTesterConnect('TK3G'));
+                }
+                break;
+            }
             case 'device_configure': {
                 let msg: WsMessageDeviceConfigure = <WsMessageDeviceConfigure> message;
-                this.devices[0].configure(msg.configuration, (err) => {
+                this.device.configure(msg.configuration, (err) => {
                     if (err) {
                         Logger.error(err);
-                        response = new WsMessageError(msg.message_type, err.toString());
+                        respond(new WsMessageError(msg.message_type, err.toString()));
                     } else {
-                        response = new WsMessageSuccess(msg.message_type);
+                        respond(new WsMessageSuccess(msg.message_type));
                     }
-                    respond();
-                })
+                });
                 break;
             }
 
             case 'device_test': {
-                this.devices[0].test((err) => {
+                this.device.test((err) => {
                     if (err) {
                         Logger.error(err);
-                        response = new WsMessageError(message.message_type, err.toString());
+                        respond(new WsMessageError(message.message_type, err.toString()));
                     } else {
-                        response = new WsMessageSuccess(message.message_type);
+                        respond(new WsMessageSuccess(message.message_type));
                     }
-
-                    respond();
-                })
+                });
                 break;
             }
 
             case 'device_binary': {
                 let msg: WsMessageDeviceBinary = <WsMessageDeviceBinary> message;
 
-                let device: Device = new Device('F:', 'F:', null)
+                // Get bin file from the given url
+                request({
+                    method: 'GET',
+                    uri: msg.url,
+                    encoding: null
+                }, (error, response, body) => {
 
-                if (msg.type === 'bootloader') {
-                    device.writeBootloader(msg.data, (err) => {
-                        if (err) {
-                            Logger.error(err);
-                            response = new WsMessageError(msg.message_type, err.toString());
+                    if (error) {
+                        respond(new WsMessageError(msg.message_type, error.toString()));
+                    } else {
+
+                        if (response.statusCode !== 200) {
+                            respond(new WsMessageError(msg.message_type, 'Unable to download binary, status was ' + response.statusCode));
                         } else {
-                            response = new WsMessageSuccess(msg.message_type);
+                            if (msg.type === 'bootloader') {
+                                Logger.info('It is a bootloader');
+                                this.device.writeBootloader(body, (err) => {
+                                    if (err) {
+                                        Logger.error(err);
+                                        respond(new WsMessageError(msg.message_type, err.toString()));
+                                    } else {
+                                        Logger.info('BootLoader upload was successfull');
+                                        setTimeout(() => {
+                                            respond(new WsMessageDeviceBinaryResult(msg.type));
+                                        }, 2500);
+                                    }
+                                });
+                            } else {
+                                this.device.writeFirmware(body, (err) => {
+                                    if (err) {
+                                        Logger.error(err);
+                                        respond(new WsMessageError(msg.message_type, err.toString()));
+                                    } else {
+                                        setTimeout(() => {
+                                            respond(new WsMessageDeviceBinaryResult(msg.type));
+                                        }, 2500);
+                                    }
+                                });
+                            }
                         }
-                        
-                        respond();
-                    });
-                } else {
-                    device.writeFirmware(msg.data, (err) => {
-                        if (err) {
-                            Logger.error(err);
-                            response = new WsMessageError(msg.message_type, err.toString());
-                        } else {
-                            response = new WsMessageSuccess(msg.message_type);
-                        }
-                        
-                        respond();
-                    });
-                }
+                    }
+                });
 
                 break;
             }
 
             default:
-                response = new WsMessageError(message.message_type, 'Unknown message type');
-                respond();
+                respond(new WsMessageError(message.message_type, 'Unknown message type'));
                 break;
         }
     }
 
+    private setDevicetDetection() {
+        this.deviceDetection = setInterval(() => { // Periodicaly check if testKit is connected
+            this.device.message('TK3G:meas_pwr')
+                .then((res) => {
+                    Logger.info(res);
+                })
+                .catch((err) => {
+                    this.device.disconnect(() => {
+                        this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
+                        this.device = null;
+                    });
+                });
+        }, 5000);
+    }
+
     private messageHandler: (message: any) => void = this.message.bind(this);
+    private deviceDetection;
+    private keepAliveBecki;
     private becki: Becki; // Object for communication with Becki
     private authToken: string;
 }

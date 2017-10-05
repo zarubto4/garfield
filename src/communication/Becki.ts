@@ -45,6 +45,24 @@ export class WsMessageSuccess extends IWebSocketMessage {
     }
 }
 
+export class WsMessageTesterConnect extends IWebSocketMessage {
+    tester_id: string;
+
+    constructor(tester_id: string) {
+        super('tester_connect');
+        this.tester_id = tester_id;
+    }
+}
+
+export class WsMessageTesterDisconnect extends IWebSocketMessage {
+    tester_id: string;
+
+    constructor(tester_id: string) {
+        super('tester_disconnect');
+        this.tester_id = tester_id;
+    }
+}
+
 export class WsMessageDeviceConnect extends IWebSocketMessage {
     device_id: string;
 
@@ -63,43 +81,19 @@ export class WsMessageDeviceDisconnect extends IWebSocketMessage {
     }
 }
 
-export class WsMessageDevicePing extends IWebSocketMessage {
-    device_id: string;
-
-    constructor(device_id: string) {
-        super('device_ping');
-        this.device_id = device_id;
-    }
-}
-
-export class WsMessageDeviceTest extends IWebSocketMessage {
-    device_id: string;
-
-    constructor(device_id: string) {
-        super('device_test');
-        this.device_id = device_id;
-    }
-}
-
-export class WsMessageGarfieldConnect extends IWebSocketMessage {
-
-    constructor() {
-        super('garfield_connect');
-    }
-}
-
-export class WsMessageGarfieldDisconnect extends IWebSocketMessage {
-
-    constructor() {
-        super('garfield_disconnect');
-    }
-}
-
 export class WsMessageDeviceBinary extends IWebSocketMessage {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
-    data: string; // base64 string
-    type: string; // bootloader or firmware
+    url: string; // url for download
+    type: ('bootloader' | 'firmware'); // bootloader or firmware
     constructor() {
         super('device_binary');
+    }
+}
+
+export class WsMessageDeviceBinaryResult extends WsMessageSuccess {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+    type: ('bootloader' | 'firmware'); // bootloader or firmware
+    constructor(type: ('bootloader' | 'firmware')) {
+        super('device_binary');
+        this.type = type;
     }
 }
 
@@ -292,6 +286,7 @@ export class Becki extends EventEmitter {
     }
 
     public sendWebSocketMessage(message: IWebSocketMessage): void {
+        Logger.info('WS message: ' + JSON.stringify(message));
         this.webSocketMessageQueue.push(message);
         this.sendWebSocketMessageQueue();
     }

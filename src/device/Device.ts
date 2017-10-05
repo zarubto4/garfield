@@ -3,11 +3,12 @@ import * as fs from 'fs';
 import { Logger } from 'logger';
 import { Configurator } from './Configurator';
 import { Tester } from './Tester';
-import * as Promise from 'promise'
+import * as Promise from 'promise';
 
 export class Device {
 
     public name: string;
+    public ioda_connected: boolean;
 
     constructor(name: string, path: string, serial: Serial) {
         this.name = name;
@@ -19,16 +20,22 @@ export class Device {
         return this.path;
     }
 
-    public getFullId(): Promise<string> {
+    public message(message: string): Promise<string> {
+        Logger.info('Sendig message \'' + message + '\' with response');
         return new Promise((resolve, reject) => {
-            this.serial.sendWithResponse('YODA:fullid', (res: string, err: string) => {
+            this.serial.sendWithResponse(message, (res: string, err: string) => {
                 if (err) {
                     reject(err);
                 } else if (res) {
+                    Logger.info('Message resolved with: ' + res);
                     resolve(res);
                 }
             });
         });
+    }
+
+    public disconnect(callback): void {
+        this.serial.disconnect(callback);
     }
 
     public hasSerialConenction(): boolean {
@@ -39,9 +46,19 @@ export class Device {
         return this.path ? true : false;
     }
 
+    public hasIoda(): boolean {
+        return this.ioda_connected;
+    }
+
     public configure(config: any, callback: (err?) => void): void {
-        let configurator: Configurator = new Configurator(config, this.serial);
-        configurator.beginConfiguration(callback);
+        this.message('TK3G:yoda_bootloader').then((response) => {
+            if (response === 'ok') {
+                let configurator: Configurator = new Configurator(config, this.serial);
+                configurator.beginConfiguration(callback);
+            }
+        }).catch((err) => {
+            callback('Unable to switch IODA to bootloader');
+        });
     }
 
     public test(callback: (err) => void): void {
@@ -49,8 +66,8 @@ export class Device {
         tester.beginTest(callback);
     }
 
-    public writeBootloader(bootloader: string, callback: (err) => void) {
-        this.writeDataToFlash('BOOTLOAD.TXT', '', (err) => {
+    public writeBootloader(bootloader: Buffer, callback: (err) => void) {
+        this.writeDataToFlash('BOOTLOAD.TXT', Buffer.from(''), (err) => {
             if (err) {
                 callback(err);
             } else {
@@ -59,12 +76,12 @@ export class Device {
         });
     }
 
-    public writeFirmware(firmware: string, callback: (err) => void) {
+    public writeFirmware(firmware: Buffer, callback: (err) => void) {
         this.writeDataToFlash('main.bin', firmware, callback);
     }
 
-    private writeDataToFlash(filename: string, data: string, callback: (err) => void) {
-        fs.writeFile(this.path + '/' + filename, Buffer.from(data, 'base64'), callback);
+    private writeDataToFlash(filename: string, data: Buffer, callback: (err) => void) {
+        fs.writeFile(this.path + '/' + filename, data, callback);
     }
 
 

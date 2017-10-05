@@ -7,6 +7,7 @@ import { Garfield } from './Garfield';
 import * as path from 'path';
 import * as url from 'url';
 import * as usb from 'usb';
+import * as fs from 'fs';
 
 const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
 
@@ -16,16 +17,30 @@ let window;
 let tray;
 let icon = nativeImage.createFromPath(path.join(__dirname, '../byzance_logo.png'));
 
-garfield.on('websocket_open', notification);
+garfield
+    .on('websocket_open', notification)
+    .on('tester_connected', () => {
+        notification('TestKit connected');
+        renderTrayContextMenu();
+    })
+    .on('tester_disconnected', () => {
+        notification('TestKit disconnected');
+        renderTrayContextMenu();
+    });
 
 function start() {
 
     tray = new Tray(icon);
     tray.setToolTip('Garfield App');
 
-    renderTrayContextMenu();
-
     notification('Garfield has started.');
+
+    fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
+        if (!err) {
+            garfield.init(data);
+        }
+        renderTrayContextMenu();
+    });
 }
 
 // This method will be called when Electron has finished
@@ -33,61 +48,36 @@ function start() {
 // Some APIs can only be used after this event occurs.
 app.on('ready', start);
 
-ipcMain.on('login', (event, token) => {
+app.on('window-all-closed', (event) => {
+    event.preventDefault(); // Default is app quitting
+});
 
+ipcMain.on('login', (event, token) => {
+    login(token, false);
+});
+
+ipcMain.on('login_remember', (event, token) => {
+    login(token, true);
+});
+
+function login(token: string, remember: boolean): void {
     Logger.warn(token);
 
     if (window) {
         window.close();
-        window = null;
     }
 
     garfield.init(token);
 
-    renderTrayContextMenu(); 
-});
+    renderTrayContextMenu();
 
-ipcMain.on('window', (event, win: string) => {
-
-    switch (win) {
-        case 'configuration': {
-            window.loadURL(url.format({
-                pathname: path.join(__dirname, '../views/configuration.html'),
-                protocol: 'file:',
-                slashes: true
-            }));
-            break;
-        }
-
-        case 'home': {
-            window.loadURL(url.format({
-                pathname: path.join(__dirname, '../views/index.html'),
-                protocol: 'file:',
-                slashes: true
-            }));
-            break;
-        }
-
-        default:
-            // code...
-            break;
+    if (remember) {
+        fs.writeFile(path.join(__dirname, '../app_data/authToken'), token);
     }
-});
-
-ipcMain.on('config', (event) => {
-    event.returnValue = ConfigManager.config.config();
-});
-
-ipcMain.on('configManager', (event) => {
-    event.returnValue = ConfigManager.config;
-});
+}
 
 ipcMain.on('tyrionUrl', (event) => {
     event.returnValue = getTyrionUrl();
-});
-
-ipcMain.on('requestData', (event, requestedData) => {
-    event.returnValue = garfield.getAuth();
 });
 
 function getTyrionUrl(): string {
@@ -103,7 +93,7 @@ function getTyrionUrl(): string {
 
 usb.on('attach', function(device) {
     Logger.warn('USB attached');
-    renderTrayContextMenu();
+    setTimeout(renderTrayContextMenu, 500);
 });
 
 function notification(message) {
@@ -123,28 +113,34 @@ function clickMenuItem(menuItem, browserWindow, event) {
 
     switch (menuItem.id) {
         case 'login': {
-            window = new BrowserWindow({height: 150, width: 300, icon: icon});
+            window = new BrowserWindow({show: false, height: 170, width: 450, icon: icon});
             window.loadURL(url.format({
                 pathname: path.join(__dirname, '../views/login.html'),
                 protocol: 'file:',
                 slashes: true
             }));
+            window.once('ready-to-show', () => {
+                window.show();
+            }).once('closed', () => {
+                window = null;
+            });
             break;
         }
-        case 'connect': {
-            
+        case 'reconnect_becki': {
+
+            garfield.reconnectBecki();
             break;
         }
-        case 'configure': {
-            if (garfield.hasDevice()) {
-                garfield.configure();
+        case 'disconnect_tester': {
+            if (garfield.hasTester()) {
+                garfield.disconnectTester();
             } else {
                 notification('No device connected!');
             }
             break;
         }
         case 'test': {
-            if (garfield.hasDevice()) {
+            if (garfield.hasTester()) {
                 garfield.test();
             } else {
                 notification('No device connected!');
@@ -152,6 +148,7 @@ function clickMenuItem(menuItem, browserWindow, event) {
             break;
         }
         case 'quit': {
+            garfield.shutdown();
             app.quit();
             break;
         }
@@ -205,7 +202,7 @@ function addDevice(mountpoint: string) {
 }*/
 
 function selectDrive(menuItem, browserWindow, event) {
-    garfield.connectDevice(menuItem.id);
+    garfield.connectTester(menuItem.id);
 }
 
 function renderTrayContextMenu() {
@@ -238,22 +235,28 @@ function renderTrayContextMenu() {
 
         let template: any[] = [];
 
-        if (garfield.hasAuth()) {
+        if (!garfield.hasAuth()) {
             template.push({id: 'login', label: 'Login', type: 'normal', click: clickMenuItem});
         } else {
             template.push({id: 'logout', label: 'Logout', type: 'normal', click: clickMenuItem});
         }
 
         template.push({type: 'separator'});
-        template.push({id: 'connect', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
+
+        if (garfield.hasBecki()) {
+            template.push({id: 'reconnect_becki', label: 'Reconnect Becki', type: 'normal', click: clickMenuItem});
+        } else {
+            template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
+        }
+
         template.push({label: 'Select drive', submenu: submenu});
 
-        if (garfield.devices.length === 0) {
-            template.push({id: 'configure', label: 'Configure', type: 'normal', click: clickMenuItem, enabled: false});
-            template.push({id: 'test', label: 'Test', type: 'normal', click: clickMenuItem, enabled: false});
+        if (garfield.hasTester()) {
+            template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem});
+            template.push({id: 'test', label: 'Test Device', type: 'normal', click: clickMenuItem});
         } else {
-            template.push({id: 'configure', label: 'Configure', type: 'normal', click: clickMenuItem});
-            template.push({id: 'test', label: 'Test', type: 'normal', click: clickMenuItem});
+            template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem, enabled: false});
+            template.push({id: 'test', label: 'Test Device', type: 'normal', click: clickMenuItem, enabled: false});
         }
 
         template.push({type: 'separator'});

@@ -41,11 +41,14 @@ export class Configurator {
     public beginConfiguration(callback: (configurationError?: string) => void) {
         if (this.connection) {
 
+            Logger.info(JSON.stringify(this.config));
+
             this.queue = new Queue<Property>();
 
-            for (const key of Object.keys(this.config)) {
-
-                this.queue.push(new Property(key, this.config[key]));
+            for (const key in this.config) {
+                if (this.config[key] !== null && this.config[key] !== undefined) {
+                    this.queue.push(new Property(key, this.config[key]));
+                }
             }
 
             this.queue.push(new Property('configured', 1));

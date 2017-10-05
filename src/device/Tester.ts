@@ -1,4 +1,5 @@
 import { Serial } from '../communication/Serial';
+import { Parsers } from '../utils/Parsers';
 import { Logger } from 'logger';
 
 enum TestStep {
@@ -43,9 +44,9 @@ export class PowerMeasurement {
 export class PinMeasurement {
 
     public type: PinMeasurementType;
-    public x: string[];
-    public y: string[];
-    public z: string[];
+    public x: ('1' | '0')[] = [];
+    public y: ('1' | '0')[] = [];
+    public z: ('1' | '0')[] = [];
 
     constructor(type: PinMeasurementType) {
         this.type = type;
@@ -64,6 +65,7 @@ export class Tester {
         this.result = new TestResult();
         this.currentStep = TestStep.PinsHigh;
         this.currentTestTry = 3;
+        this.testCallback = callback;
         this.testMessageHandler = this.onTestMessage.bind(this);
 
         this.serial.on('message', this.testMessageHandler);
@@ -73,6 +75,8 @@ export class Tester {
 
     private test(): void {
 
+        Logger.info('Beggining test: ' + this.currentStep);
+
         switch (this.currentStep) {
             case TestStep.PinsHigh: {
                 this.setTimeout(5000);
@@ -80,7 +84,7 @@ export class Tester {
                 break;
             }
             case TestStep.MeasureHigh: {
-                this.setTimeout(60000);
+                this.setTimeout(5000);
                 this.serial.send('TK3G:meas_pins');
                 break;
             }
@@ -90,12 +94,12 @@ export class Tester {
                 break;
             }
             case TestStep.MeasureLow: {
-                this.setTimeout(60000);
+                this.setTimeout(5000);
                 this.serial.send('TK3G:meas_pins');
                 break;
             }
             case TestStep.MeasurePower: {
-                this.setTimeout(60000);
+                this.setTimeout(5000);
                 this.serial.send('TK3G:meas_pwr');
                 break;
             }
@@ -109,57 +113,17 @@ export class Tester {
         }
     }
 
-    private parsePowerMeasurement(measurement: string) {
-        measurement = measurement.replace('TK3G:meas_pwr=', ''); // Removing the prefix of the result
-
-        if (measurement.match(/;$/)) {
-            measurement = measurement.substring(0, measurement.lastIndexOf(';')); // Striping off last semicolon
-        }
-
-        let results: string[] = measurement.split(';'); // Creating an array with semicolon as delimiter
-
-        this.result.powerMeasurements = [new PowerMeasurement(PowerSource.ActivePoe), new PowerMeasurement(PowerSource.PasivePoe), new PowerMeasurement(PowerSource.External), new PowerMeasurement(PowerSource.Usb)];
-        this.result.powerMeasurements.forEach((meas) => {
-            meas.vbus = parseFloat(results.shift());
-            meas.v3 = parseFloat(results.shift());
-            meas.current = parseFloat(results.shift());
-        });
-    }
-
-    private parsePinMeasurement(type: PinMeasurementType, measurement: string) {
-        let pinMeasurement = new PinMeasurement(type);
-        measurement = measurement.replace('TK3G:meas_pins=', ''); // Removing the prefix of the result
-
-        let results: string[] = measurement.split(';');
-
-        results.forEach((meas) => {
-
-            let pins: string[];
-
-            let value = meas.substring(meas.lastIndexOf(':') + 1);
-
-            for (let i = 0; i < value.length; i++) {
-                pins[i] = value.charAt(i);
-            }
-
-            if (meas.startsWith('X:')) {
-                pinMeasurement.x = pins;
-            }
-
-            if (meas.startsWith('Y:')) {
-                pinMeasurement.y = pins;
-            }
-
-            if (meas.startsWith('Z:')) {
-                pinMeasurement.z = pins;
-            }
-        });
-
-        this.result.pinMeasurements.push(pinMeasurement);
-    }
-
     private endTest() {
         this.serial.removeListener('message', this.testMessageHandler);
+        if (this.result.errors.length > 0) {
+            let err: string = '';
+            for (let e of this.result.errors) {
+                err += e + '; ';
+            }
+            this.testCallback(err);
+        } else {
+            this.testCallback();
+        }
     }
 
     private setTimeout(timeout: number) {
@@ -224,7 +188,7 @@ export class Tester {
             case TestStep.MeasureHigh: {
                 if (from === 'TK3G' && type === 'meas_pins') {
                     this.currentStep = TestStep.PinsLow;
-                    this.parsePinMeasurement(PinMeasurementType.Up, value);
+                    this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Up, value));
                     this.currentTestTry = 3;
                 }
                 break;
@@ -239,7 +203,7 @@ export class Tester {
             case TestStep.MeasureLow: {
                 if (from === 'TK3G' && type === 'meas_pins') {
                     this.currentStep = TestStep.MeasurePower;
-                    this.parsePinMeasurement(PinMeasurementType.Down, value);
+                    this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Down, value));
                     this.currentTestTry = 3;
                 }
                 break;
@@ -247,7 +211,7 @@ export class Tester {
             case TestStep.MeasurePower: {
                 if (from === 'TK3G' && type === 'meas_pwr') {
                     this.currentStep = TestStep.Finish;
-                    this.parsePowerMeasurement(value);
+                    this.result.powerMeasurements = Parsers.parsePowerMeasurement(value);
                     this.currentTestTry = 3;
                 }
                 break;
