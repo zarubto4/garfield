@@ -11,7 +11,7 @@
     "start": "electron .",
     "build": "rimraf dist && tsc",
     "build-start": "npm run build && npm start",
-    "package": ""
+    "package": "npm run build && node packager.js"
   },
   "repository": "https://github.com/ByzanceIoT/garfield.git",
   "keywords": [
@@ -20,11 +20,13 @@
   "author": "Alexandr Tylš",
   "license": "UNLICENSED",
   "devDependencies": {
-    "electron-rebuild": "^1.6.0",
+    "commonjs": "0.0.1",
+    "electron-installer-dmg": "^0.2.1",
     "electron-packager": "^9.0.1",
+    "electron-rebuild": "^1.6.0",
+    "electron-winstaller": "^2.6.3",
     "tslint": "^4.3.1",
-    "tslint-eslint-rules": "^3.2.3",
-    "commonjs": "0.0.1"
+    "tslint-eslint-rules": "^3.2.3"
   },
   "dependencies": {
     "drivelist": "^5.1.8",

@@ -9,6 +9,15 @@ import * as url from 'url';
 import * as usb from 'usb';
 import * as fs from 'fs';
 
+// if (require('electron-squirrel-startup')) {
+//    app.quit();
+// }
+
+if (handleSquirrelEvent()) {
+    // squirrel event handled and app will exit in 1000ms, so don't do anything else
+    app.quit();
+}
+
 const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
 
 // Keep a global reference of the window object, if you don't, the window will
@@ -158,48 +167,10 @@ function clickMenuItem(menuItem, browserWindow, event) {
             break;
     }
 }
+
 /*
-function addDevice(mountpoint: string) {
-
-    Logger.info('Adding new device');
-
-    let device: Device;
-
-    drivelist.list((error, drives) => {
-
-        if (error) {
-            throw error;
-        }
-
-        Logger.info(JSON.stringify(drives));
-
-        drives.forEach((drive) => {
-
-            if (drive.system) {
-                return; // System drives will be skipped
-            }
-
-            if (drive.displayName.match(/^BYZG3_\d{4}$/)) { // If name is patern 'BYZG3_dddd' where d is a number
-
-                devices.forEach((dev, index) => {
-                    if (dev.getPath() === drive.mountpoints[0].path) { // Check if device is already connected
-                        Logger.info('This device ' + drive.displayName + ' is already connected - skipping');
-                        return;
-                    } else if (index === devices.length - 1) {
-
-                        Logger.info('Device is new, connecting to ' + drive.displayName);
-
-                        let serial: Serial = new Serial();
-
-                        serial.on('connected' , () => {
-                            device = new Device(drive.displayName, drive.mountpoints[0].path, serial);
-                        });
-                    }
-                });
-            }
-        });
-    });
-}*/
+    if (drive.displayName.match(/^BYZG3_\d{4}$/)) { // If name is patern 'BYZG3_dddd' where d is a number
+*/
 
 function selectDrive(menuItem, browserWindow, event) {
     garfield.connectTester(menuItem.id);
@@ -267,3 +238,66 @@ function renderTrayContextMenu() {
         tray.setContextMenu(contextMenu);
     });
 }
+
+// Handling squirrel events for windows plarform
+function handleSquirrelEvent() {
+    if (process.argv.length === 1) {
+        return false;
+    }
+
+    const ChildProcess = require('child_process');
+
+    Logger.info('ExecPath: ' + process.execPath);
+
+    const appFolder = path.resolve(process.execPath, '..');
+    const rootAtomFolder = path.resolve(appFolder, '..');
+    const updateDotExe = path.resolve(path.join(rootAtomFolder, 'Update.exe'));
+    const exeName = path.basename(process.execPath);
+
+    const spawn = function(command, args) {
+        let spawnedProcess, error;
+
+        try {
+            spawnedProcess = ChildProcess.spawn(command, args, {
+                detached: true
+            });
+        } catch (error) {}
+
+        return spawnedProcess;
+    };
+
+    const spawnUpdate = function(args) {
+        return spawn(updateDotExe, args);
+    };
+
+    const squirrelEvent = process.argv[1];
+    switch (squirrelEvent) {
+        case '--squirrel-install':
+        case '--squirrel-updated':
+            // Optionally do things such as:
+            // - Add your .exe to the PATH
+            // - Write to the registry for things like file associations and
+            //   explorer context menus
+
+            // Install desktop and start menu shortcuts
+            spawnUpdate(['--createShortcut', exeName]);
+
+            return true;
+
+        case '--squirrel-uninstall':
+            // Undo anything you did in the --squirrel-install and
+            // --squirrel-updated handlers
+
+            // Remove desktop and start menu shortcuts
+            spawnUpdate(['--removeShortcut', exeName]);
+
+            return true;
+
+        case '--squirrel-obsolete':
+            // This is called on the outgoing version of your app before
+            // we update to the new version - it's the opposite of
+            // --squirrel-updated
+
+            return true;
+    }
+};

@@ -115,6 +115,7 @@ export class Tester {
 
     private endTest() {
         this.serial.removeListener('message', this.testMessageHandler);
+        this.evalTest();
         if (this.result.errors.length > 0) {
             let err: string = '';
             for (let e of this.result.errors) {
@@ -220,10 +221,105 @@ export class Tester {
         this.test();
     }
 
+    private evalTest(): void {
+
+        let pinsUp: PinMeasurement = this.result.pinMeasurements.find((el: PinMeasurement) => {
+            return el.type === PinMeasurementType.Up;
+        });
+
+        if (pinsUp) {
+            // code...
+        } else {
+            this.result.errors.push('Missing \'PinsUp\' measurement.');
+        }
+
+        let pinsDown: PinMeasurement = this.result.pinMeasurements.find((el: PinMeasurement) => {
+            return el.type === PinMeasurementType.Down;
+        });
+
+        if (pinsDown) {
+            // code...
+        } else {
+            this.result.errors.push('Missing \'PinsDown\' measurement.');
+        }
+    }
+
     private serial: Serial;
     private testTimeout: any;
     private currentStep: TestStep;
     private currentTestTry: number;
     private testMessageHandler: (message: string) => void;
     private testCallback: (error?: string) => void;
+    private testConfig: any = {
+        pins: {
+            up: {
+                x: ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+                y: ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+                z: ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1']
+            },
+            down: {
+                x: ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
+                y: ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
+                z: ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
+            }
+        },
+        power: {
+            poe_act: {
+                vbus: {
+                    min: 5,
+                    max: 6
+                },
+                v3: {
+                    min: 5,
+                    max: 6
+                },
+                curr: {
+                    min: 5,
+                    max: 6
+                }
+            },
+            poe_pas: {
+                vbus: {
+                    min: 5,
+                    max: 6
+                },
+                v3: {
+                    min: 5,
+                    max: 6
+                },
+                curr: {
+                    min: 5,
+                    max: 6
+                }
+            },
+            ext_pwr: {
+                vbus: {
+                    min: 5,
+                    max: 6
+                },
+                v3: {
+                    min: 5,
+                    max: 6
+                },
+                curr: {
+                    min: 5,
+                    max: 6
+                }
+            },
+            usb_pwr: {
+                vbus: {
+                    min: 5,
+                    max: 6
+                },
+                v3: {
+                    min: 5,
+                    max: 6
+                },
+                curr: {
+                    min: 5,
+                    max: 6
+                }
+            }
+        }
+    };
 }
