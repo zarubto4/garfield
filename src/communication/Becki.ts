@@ -2,16 +2,9 @@ import * as Rx from 'rxjs';
 import { resolve } from 'path';
 import { Logger } from 'logger';
 import * as WebSocket from 'ws';
+import * as rp from 'request-promise';
 import { EventEmitter } from 'events';
 import { ConfigManager } from '../utils/ConfigManager';
-
-const request = require('request');
-
-const { ipcRenderer } = require('electron');
-const rp = require('request-promise');
-
-
-
 
 export class IWebSocketMessage {
     public message_id: string;
@@ -20,7 +13,7 @@ export class IWebSocketMessage {
 
     constructor(message_type: string) {
         this.message_id = Becki.uuid();
-        this.message_channel = Becki.WS_CHANNEL_OUT;
+        this.message_channel = Becki.WS_CHANNEL;
         this.message_type = message_type;
     }
 }
@@ -118,7 +111,6 @@ export class WsMessageForceDeviceConnection extends IWebSocketMessage {
     }
 }
 
-
 export interface IWebSocketToken {
     /**
      * @name websocket_token
@@ -156,13 +148,9 @@ export class RestRequest {
     }
 }
 
-
-
 export class Becki extends EventEmitter {
 
     public static WS_CHANNEL = 'garfield';
-
-    public static WS_CHANNEL_OUT = 'garfield';
 
     public static uuid(): string {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {

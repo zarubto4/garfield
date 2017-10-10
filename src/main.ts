@@ -9,22 +9,45 @@ import * as url from 'url';
 import * as usb from 'usb';
 import * as fs from 'fs';
 
-// if (require('electron-squirrel-startup')) {
-//    app.quit();
-// }
+const platform = process.platform;
+let icon;
 
-if (handleSquirrelEvent()) {
-    // squirrel event handled and app will exit in 1000ms, so don't do anything else
-    app.quit();
+/**************************************
+ *                                    *
+ * Enviroment stuff                   *
+ *                                    *
+ **************************************/
+
+// Do platform specific tasks
+switch (platform) {
+    case 'win32': {
+        if (handleSquirrelEvent()) {
+            app.quit();
+        }
+        icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.ico'));
+        break;
+    }
+    case 'darwin': {
+        break;
+    }
+    case 'linux': {
+        break;
+    }
+    default:
+        icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
+        break;
 }
+
+/**************************************
+ *                                    *
+ * Application lifecycle              *
+ *                                    *
+ **************************************/
 
 const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
 
-// Keep a global reference of the window object, if you don't, the window will
-// be closed automatically when the JavaScript object is garbage collected.
 let window;
-let tray;
-let icon = nativeImage.createFromPath(path.join(__dirname, '../byzance_logo.png'));
+let tray; 
 
 garfield
     .on('websocket_open', notification)
@@ -35,26 +58,9 @@ garfield
     .on('tester_disconnected', () => {
         notification('TestKit disconnected');
         renderTrayContextMenu();
-    });
+    })
+    .on('unauthorized', notification);
 
-function start() {
-
-    tray = new Tray(icon);
-    tray.setToolTip('Garfield App');
-
-    notification('Garfield has started.');
-
-    fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
-        if (!err) {
-            garfield.init(data);
-        }
-        renderTrayContextMenu();
-    });
-}
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.on('ready', start);
 
 app.on('window-all-closed', (event) => {
@@ -69,8 +75,37 @@ ipcMain.on('login_remember', (event, token) => {
     login(token, true);
 });
 
+ipcMain.on('tyrionUrl', (event) => {
+    event.returnValue = getTyrionUrl();
+});
+
+usb.on('attach', function(device) {
+    Logger.warn('USB attached');
+    setTimeout(renderTrayContextMenu, 500);
+});
+
+/**************************************
+ *                                    *
+ * Support functions                  *
+ *                                    *
+ **************************************/
+
+function start(): void {
+
+    tray = new Tray(icon);
+    tray.setToolTip('Garfield App');
+
+    notification('Garfield has started.');
+
+    fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
+        if (!err) {
+            garfield.init(data);
+        }
+        renderTrayContextMenu();
+    });
+}
+
 function login(token: string, remember: boolean): void {
-    Logger.warn(token);
 
     if (window) {
         window.close();
@@ -81,13 +116,20 @@ function login(token: string, remember: boolean): void {
     renderTrayContextMenu();
 
     if (remember) {
-        fs.writeFile(path.join(__dirname, '../app_data/authToken'), token);
+        fs.stat(path.join(__dirname, '../app_data'), (err, stats) => { // Check dir existence
+            if (err) {
+                Logger.error(JSON.stringify(err));
+                fs.mkdir(path.join(__dirname, '../app_data'), (mkErr) => { // Create dir
+                    if (!mkErr) {
+                        fs.writeFile(path.join(__dirname, '../app_data/authToken'), token, (writeErr) => { // Save token
+                            Logger.error(JSON.stringify(writeErr))
+                        });
+                    }
+                });
+            }
+        });
     }
 }
-
-ipcMain.on('tyrionUrl', (event) => {
-    event.returnValue = getTyrionUrl();
-});
 
 function getTyrionUrl(): string {
 
@@ -99,11 +141,6 @@ function getTyrionUrl(): string {
 
     return protocol + host;
 }
-
-usb.on('attach', function(device) {
-    Logger.warn('USB attached');
-    setTimeout(renderTrayContextMenu, 500);
-});
 
 function notification(message) {
     let notification = new Notification({
@@ -117,7 +154,7 @@ function notification(message) {
     notification.show();
 }
 
-function clickMenuItem(menuItem, browserWindow, event) {
+function clickMenuItem(menuItem, browserWindow, event): void {
     Logger.info('Click on button: ', menuItem.id);
 
     switch (menuItem.id) {
@@ -148,14 +185,6 @@ function clickMenuItem(menuItem, browserWindow, event) {
             }
             break;
         }
-        case 'test': {
-            if (garfield.hasTester()) {
-                garfield.test();
-            } else {
-                notification('No device connected!');
-            }
-            break;
-        }
         case 'quit': {
             garfield.shutdown();
             app.quit();
@@ -172,18 +201,16 @@ function clickMenuItem(menuItem, browserWindow, event) {
     if (drive.displayName.match(/^BYZG3_\d{4}$/)) { // If name is patern 'BYZG3_dddd' where d is a number
 */
 
-function selectDrive(menuItem, browserWindow, event) {
+function selectDrive(menuItem, browserWindow, event): void {
     garfield.connectTester(menuItem.id);
 }
 
-function renderTrayContextMenu() {
+function renderTrayContextMenu(): void {
     drivelist.list((error, drives) => {
 
         if (error) {
             throw error;
         }
-
-        Logger.info(JSON.stringify(drives));
 
         let submenu: any[] = [];
 
@@ -193,7 +220,7 @@ function renderTrayContextMenu() {
                 return; // System drives will be skipped
             }
 
-            Logger.info('Rendering button for drive ' + drive.displayName);
+            Logger.info('renderTrayContextMenu: rendering button for drive: ' + drive.displayName);
 
             let item = {
                 id: drive.mountpoints[0].path,
@@ -224,10 +251,8 @@ function renderTrayContextMenu() {
 
         if (garfield.hasTester()) {
             template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem});
-            template.push({id: 'test', label: 'Test Device', type: 'normal', click: clickMenuItem});
         } else {
             template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem, enabled: false});
-            template.push({id: 'test', label: 'Test Device', type: 'normal', click: clickMenuItem, enabled: false});
         }
 
         template.push({type: 'separator'});
@@ -240,7 +265,7 @@ function renderTrayContextMenu() {
 }
 
 // Handling squirrel events for windows plarform
-function handleSquirrelEvent() {
+function handleSquirrelEvent(): boolean {
     if (process.argv.length === 1) {
         return false;
     }
@@ -250,9 +275,13 @@ function handleSquirrelEvent() {
     Logger.info('ExecPath: ' + process.execPath);
 
     const appFolder = path.resolve(process.execPath, '..');
+    Logger.info('appFolder: ' + appFolder);
     const rootAtomFolder = path.resolve(appFolder, '..');
+    Logger.info('rootAtomFolder: ' + rootAtomFolder);
     const updateDotExe = path.resolve(path.join(rootAtomFolder, 'Update.exe'));
+    Logger.info('updateDotExe: ' + updateDotExe);
     const exeName = path.basename(process.execPath);
+    Logger.info('exeName: ' + exeName);
 
     const spawn = function(command, args) {
         let spawnedProcess, error;

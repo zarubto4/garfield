@@ -11,13 +11,13 @@
     "start": "electron .",
     "build": "rimraf dist && tsc",
     "build-start": "npm run build && npm start",
-    "package": "npm run build && node packager.js"
+    "package-win": "npm run build && node packager.js win"
   },
   "repository": "https://github.com/ByzanceIoT/garfield.git",
   "keywords": [
     "garfield"
   ],
-  "author": "Alexandr Tylš",
+  "author": "Byzance",
   "license": "UNLICENSED",
   "devDependencies": {
     "commonjs": "0.0.1",
@@ -29,7 +29,7 @@
     "tslint-eslint-rules": "^3.2.3"
   },
   "dependencies": {
-    "drivelist": "^5.1.8",
+    "drivelist": "^5.2.4",
     "electron": "~1.7.5",
     "logger": "git+ssh://git@github.com:ByzanceIoT/js-logger.git#v1.2.1",
     "promise": "^8.0.1",

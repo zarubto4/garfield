@@ -227,8 +227,34 @@ export class Tester {
             return el.type === PinMeasurementType.Up;
         });
 
+        // TODO better evaluator
+
         if (pinsUp) {
-            // code...
+            this.testConfig.pins.up.x.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsUp.x[index]) {
+                    this.result.errors.push('Pin \'X' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsUp.x[index]) {
+                    this.result.errors.push('Pin \'X' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
+                }
+            });
+            this.testConfig.pins.up.y.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsUp.y[index]) {
+                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsUp.y[index]) {
+                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
+                }
+            });
+            this.testConfig.pins.up.z.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsUp.z[index]) {
+                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsUp.z[index]) {
+                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
+                }
+            });
+
         } else {
             this.result.errors.push('Missing \'PinsUp\' measurement.');
         }
@@ -238,7 +264,30 @@ export class Tester {
         });
 
         if (pinsDown) {
-            // code...
+            this.testConfig.pins.down.x.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsDown.x[index]) {
+                    this.result.errors.push('Pin \'X' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsDown.x[index]) {
+                    this.result.errors.push('Pin \'X' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
+                }
+            });
+            this.testConfig.pins.down.y.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsDown.y[index]) {
+                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsDown.y[index]) {
+                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
+                }
+            });
+            this.testConfig.pins.down.z.forEach((pin: ('0'|'1'), index: number) => {
+                if (!pinsDown.z[index]) {
+                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
+                }
+                if (pin !== pinsDown.z[index]) {
+                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
+                }
+            });
         } else {
             this.result.errors.push('Missing \'PinsDown\' measurement.');
         }

@@ -26,11 +26,6 @@ export class Serial extends EventEmitter {
         return undefined;
     }
 
-    /*constructor(callback: (err) => void) {
-        super();
-        this.connect(callback);
-    }*/
-
     public connect() {
 
         let opened_connections: SerialPort[] = []; // Reference for all opened connections
@@ -235,6 +230,7 @@ export class Serial extends EventEmitter {
     private static crc(message: string): string {
         let crc: number = 0;
         for (let i = 0; i < message.length; i++) {
+            // tslint:disable-next-line:no-bitwise
             crc ^= message.charCodeAt(i);
         }
 

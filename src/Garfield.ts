@@ -4,6 +4,7 @@ import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinar
 import { ConfigManager } from './utils/ConfigManager';
 import { Configurator } from './device/Configurator';
 import { Serial } from './communication/Serial';
+import { Tyrion } from './communication/Tyrion';
 import { Device } from './device/Device';
 import { Tester } from './device/Tester';
 import { EventEmitter } from 'events';
@@ -18,7 +19,9 @@ export class Garfield extends EventEmitter {
      *                                    *
      **************************************/
 
-    public device: Device; // Array of connected devices
+    public device: Device;
+    public person: IPerson;
+    public tyrionClient: Tyrion;
 
     constructor() {
         super();
@@ -27,23 +30,44 @@ export class Garfield extends EventEmitter {
 
     public init(token: string): void {
 
-        this.authToken = token;
+        request({
+            method: 'GET',
+            uri: (ConfigManager.config.get<boolean>('tyrionSecured') ? 'https://' : 'http://') +
+                ConfigManager.config.get<string>('tyrionHost').trim() + '/login/person',
+            body: {},
+            json: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'garfield-app',
+                'x-auth-token': token
+            }
+        }, (error, response, body) => {
+            if (error || response.statusCode !== 200) {
+                Logger.warn(response.statusCode);
+                this.emit('unauthorized', 'Unauthorized, please login.')
+                return;
+            }
 
-        this.becki = new Becki(token);
+            this.person = body.person;
 
-        this.becki
-            .once('open', () => {
-                this.emit('websocket_open', 'Becki is connected.');
-                this.keepAliveBecki = setInterval(() => {
-                    this.becki.sendWebSocketMessage(new IWebSocketMessage('keepalive'));
-                }, 5000);
-            })
-            .on('subscribe_becki', this.messageHandler)
-            .on('device_configure', this.messageHandler)
-            .on('device_test', this.messageHandler)
-            .on('device_binary', this.messageHandler);
+            this.authToken = token;
 
-        this.becki.connectWebSocket();
+            this.becki = new Becki(token);
+
+            this.becki
+                .once('open', () => {
+                    this.emit('websocket_open', 'Becki is connected.');
+                    this.keepAliveBecki = setInterval(() => {
+                        this.becki.sendWebSocketMessage(new IWebSocketMessage('keepalive'));
+                    }, 5000);
+                })
+                .on('subscribe_becki', this.messageHandler)
+                .on('device_configure', this.messageHandler)
+                .on('device_test', this.messageHandler)
+                .on('device_binary', this.messageHandler);
+
+            this.becki.connectWebSocket();
+        });
     }
 
     public connectTester(drive: string): void {
@@ -51,11 +75,8 @@ export class Garfield extends EventEmitter {
 
         let serial: Serial = new Serial();
 
-        let temp_device: Device;
-
         serial.once('connected' , () => {
-            temp_device = new Device(drive, drive, serial);
-            this.device = temp_device;
+            this.device = new Device(drive, drive, serial);
             this.becki.sendWebSocketMessage(new WsMessageTesterConnect('TK3G'));
             this.setDevicetDetection();
             this.emit('tester_connected');
@@ -271,4 +292,15 @@ export class Garfield extends EventEmitter {
     private keepAliveBecki;
     private becki: Becki; // Object for communication with Becki
     private authToken: string;
+}
+
+export interface IPerson {
+    country: string;
+    edit_permission: boolean;
+    full_name: string;
+    gender: string;
+    id: string;
+    mail: string;
+    nick_name: string;
+    picture_link: string;
 }
