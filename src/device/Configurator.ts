@@ -43,21 +43,28 @@ export class Configurator {
 
             Logger.info(JSON.stringify(this.config));
 
-            this.queue = new Queue<Property>();
+            // Set defaults first
+            this.connection.sendWithResponse('YODA:defaults', (res: string, err?: string) => {
+                if (!err && res === 'ok') {
+                    this.queue = new Queue<Property>();
 
-            for (const key in this.config) {
-                if (this.config[key] !== null && this.config[key] !== undefined) {
-                    this.queue.push(new Property(key, this.config[key]));
+                    for (const key in this.config) {
+                        if (this.config[key] !== null && this.config[key] !== undefined) {
+                            this.queue.push(new Property(key, this.config[key]));
+                        }
+                    }
+
+                    this.queue.push(new Property('configured', 1));
+
+                    this.currentPropertyTry = 3;
+                    this.configurationCallback = callback;
+                    this.configureMessageHandler = this.onConfigureMessage.bind(this);
+                    this.connection.on('message', this.configureMessageHandler);
+                    this.configure();
+                } else {
+                    callback('Unable to set defaults before configuration - canceled');
                 }
-            }
-
-            this.queue.push(new Property('configured', 1));
-
-            this.currentPropertyTry = 3;
-            this.configurationCallback = callback;
-            this.configureMessageHandler = this.onConfigureMessage.bind(this);
-            this.connection.on('message', this.configureMessageHandler);
-            this.configure();
+            });
         }
     }
 

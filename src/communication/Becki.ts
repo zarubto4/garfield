@@ -74,7 +74,7 @@ export class WsMessageDeviceDisconnect extends IWebSocketMessage {
     }
 }
 
-export class WsMessageDeviceBinary extends IWebSocketMessage {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+export class WsMessageDeviceBinary extends IWebSocketMessage {
     url: string; // url for download
     type: ('bootloader' | 'firmware'); // bootloader or firmware
     constructor() {
@@ -82,7 +82,7 @@ export class WsMessageDeviceBinary extends IWebSocketMessage {// TODO přepsat a
     }
 }
 
-export class WsMessageDeviceBinaryResult extends WsMessageSuccess {// TODO přepsat a domluvit se, jak a co budeme posílat v tomto
+export class WsMessageDeviceBinaryResult extends WsMessageSuccess {
     type: ('bootloader' | 'firmware'); // bootloader or firmware
     constructor(type: ('bootloader' | 'firmware')) {
         super('device_binary');
@@ -90,11 +90,19 @@ export class WsMessageDeviceBinaryResult extends WsMessageSuccess {// TODO přep
     }
 }
 
-export class WsMessageGetConfiguration extends IWebSocketMessage { // get jakožto z pohledu Becki //TODO promyslet zda to necheme přejmenovat
-    configuration: JSON; // TODO přepsat/rozepsat dle nastavení HW
-    constructor(configuration: any) {
-        super('get_configuration');
-        this.configuration = configuration;
+export class WsMessageDeviceTest extends IWebSocketMessage {
+    test_config: JSON;
+    constructor() {
+        super('device_test');
+    }
+}
+
+export class WsMessageDeviceTestResult extends IWebSocketMessage {
+    errors: string[];
+    status: string = 'error';
+    constructor(errors: string[]) {
+        super('device_test');
+        this.errors = errors;
     }
 }
 
@@ -102,12 +110,6 @@ export class WsMessageDeviceConfigure extends IWebSocketMessage {
     configuration: JSON; // TODO přepsat/rozepsat dle nastavení HW
     constructor() {
         super('device_configure');
-    }
-}
-
-export class WsMessageForceDeviceConnection extends IWebSocketMessage {
-    constructor() {
-        super('force_device_connect');
     }
 }
 
@@ -280,10 +282,18 @@ export class Becki extends EventEmitter {
     }
 
     public disconnectWebSocket(): void {
+        Logger.info('disconnectWebSocket: disconnecting');
+        if (this.webSocketReconnectTimeout) {
+            Logger.info('disconnectWebSocket: clear reconnect timeout');
+            clearTimeout(this.webSocketReconnectTimeout);
+        }
         if (this.webSocket) {
+            Logger.info('disconnectWebSocket: removing event listener and closing');
             this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
             this.webSocket.close();
         }
+
+        Logger.info('disconnectWebSocket: connection closed');
         this.webSocket = null;
     }
 

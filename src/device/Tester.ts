@@ -3,12 +3,12 @@ import { Parsers } from '../utils/Parsers';
 import { Logger } from 'logger';
 
 enum TestStep {
-    PinsHigh,
-    MeasureHigh,
-    PinsLow,
-    MeasureLow,
-    MeasurePower,
-    Finish
+    PinsHigh = 'Pins Up',
+    MeasureHigh = 'Measure Pins Up',
+    PinsLow = 'Pins Down',
+    MeasureLow = 'Measure Pins Down',
+    MeasurePower = 'Measure Power',
+    Finish = 'Finish'
 }
 
 export class TestResult {
@@ -18,23 +18,25 @@ export class TestResult {
 }
 
 export enum PowerSource {
-    ActivePoe,
-    PasivePoe,
-    External,
-    Usb
+    ActivePoe = 'poe_act',
+    PasivePoe = 'poe_pas',
+    External = 'ext_pwr',
+    Usb = 'usb_pwr'
 }
 
 export enum PinMeasurementType {
-    Up,
-    Down
+    Up = 'up',
+    Down = 'down'
 }
 
 export class PowerMeasurement {
 
+    public static powerTypes: ('vbus'|'v3'|'curr')[] = ['vbus', 'v3', 'curr'];
+
     public type: PowerSource;
     public vbus: number;
     public v3: number;
-    public current: number;
+    public curr: number;
 
     constructor(type: PowerSource) {
         this.type = type;
@@ -42,6 +44,8 @@ export class PowerMeasurement {
 }
 
 export class PinMeasurement {
+
+    public static pinTypes: ('x'|'y'|'z')[] = ['x', 'y', 'z'];
 
     public type: PinMeasurementType;
     public x: ('1' | '0')[] = [];
@@ -61,8 +65,10 @@ export class Tester {
         this.serial = serial;
     }
 
-    public beginTest(callback: (err?) => void) {
+    public beginTest(test_config: any, callback: (errors?: string[]) => void) {
+        Logger.info('Beggining test with config: ' + JSON.stringify(test_config));
         this.result = new TestResult();
+        this.testConfig = test_config;
         this.currentStep = TestStep.PinsHigh;
         this.currentTestTry = 3;
         this.testCallback = callback;
@@ -75,7 +81,14 @@ export class Tester {
 
     private test(): void {
 
+        if (this.currentTestTry <= 0) {
+            this.addError('Test \'' + this.currentStep + '\' failed: no response');
+            this.skipTest();
+        }
+
         Logger.info('Beggining test: ' + this.currentStep);
+
+        this.currentTestTry--;
 
         switch (this.currentStep) {
             case TestStep.PinsHigh: {
@@ -117,11 +130,7 @@ export class Tester {
         this.serial.removeListener('message', this.testMessageHandler);
         this.evalTest();
         if (this.result.errors.length > 0) {
-            let err: string = '';
-            for (let e of this.result.errors) {
-                err += e + '; ';
-            }
-            this.testCallback(err);
+            this.testCallback(this.result.errors);
         } else {
             this.testCallback();
         }
@@ -129,40 +138,39 @@ export class Tester {
 
     private setTimeout(timeout: number) {
         this.testTimeout = setTimeout(() => {
-            if (this.currentTestTry === 0) {
-
-                this.result.errors.push('Test \'' + this.currentStep + '\' failed: no response from TestKit');
-
-                switch (this.currentStep) { // Jump to next test
-                    case TestStep.PinsHigh: {
-                        this.currentStep = TestStep.MeasureHigh;
-                        break;
-                    }
-                    case TestStep.MeasureHigh: {
-                        this.currentStep = TestStep.PinsLow;
-                        break;
-                    }
-                    case TestStep.PinsLow: {
-                        this.currentStep = TestStep.MeasureLow;
-                        break;
-                    }
-                    case TestStep.MeasureLow: {
-                        this.currentStep = TestStep.MeasurePower;
-                        break;
-                    }
-                    case TestStep.MeasurePower: {
-                        this.currentStep = TestStep.Finish;
-                        break;
-                    }
-                    default:
-                        // code...
-                        break;
-                }
-            } else {
-                this.currentTestTry--;
+            Logger.warn('Test \'' + this.currentStep + '\' timeout - current try: ' + this.currentTestTry);
+            if (this.currentTestTry <= 0) {
+                this.addError('Test \'' + this.currentStep + '\' failed: no response');
+                this.skipTest();
             }
             this.test();
         }, timeout);
+    }
+
+    private skipTest() {
+        Logger.error('Test \'' + this.currentStep + '\' failed - skipping');
+        switch (this.currentStep) { // Jump to next test
+            case TestStep.PinsHigh: {
+                this.currentStep = TestStep.MeasureHigh;
+                break;
+            }
+            case TestStep.MeasureHigh: {
+                this.currentStep = TestStep.PinsLow;
+                break;
+            }
+            case TestStep.PinsLow: {
+                this.currentStep = TestStep.MeasureLow;
+                break;
+            }
+            case TestStep.MeasureLow: {
+                this.currentStep = TestStep.MeasurePower;
+                break;
+            }
+            case TestStep.MeasurePower: {
+                this.currentStep = TestStep.Finish;
+                break;
+            }
+        }
     }
 
     private onTestMessage(message: string) {
@@ -223,74 +231,69 @@ export class Tester {
 
     private evalTest(): void {
 
-        let pinsUp: PinMeasurement = this.result.pinMeasurements.find((el: PinMeasurement) => {
-            return el.type === PinMeasurementType.Up;
+        // Array of measurement types that should be present in the result
+        let pinMeasTypes: PinMeasurementType[] = [PinMeasurementType.Up, PinMeasurementType.Down];
+        let powerSources: PowerSource[] = [PowerSource.ActivePoe, PowerSource.PasivePoe, PowerSource.External, PowerSource.Usb];
+
+        // Eval the measurement for each type
+        pinMeasTypes.forEach((pinMeasType: PinMeasurementType) => {
+
+            // Find the measurement in the result
+            let pinMeas: PinMeasurement = this.result.pinMeasurements.find((el: PinMeasurement) => {
+                return el.type === pinMeasType;
+            });
+
+            // Eval or add error
+            if (pinMeas) {
+
+                // Compares wanted values of pins with measured ones
+                PinMeasurement.pinTypes.forEach((type) => {
+                    this.testConfig.pins[pinMeas.type][type].forEach((pin: ('0'|'1'), index: number) => {
+                        if (!pinMeas[type][index]) {
+                            this.addError('Pin \'' + type + index + '\' is undefined, perhaps missing from the measurement. (index starts from zero)');
+                        } else if (pinMeas[type][index] !== pin) {
+                            this.addError('Pin \'' + type + index + '\' is ' + pinMeas[type][index] + ', when it should be ' + pin + '. (index starts from zero)');
+                        }
+                    });
+                });
+            } else {
+                this.addError('Missing \'' + pinMeasType + '\' pin measurement.');
+            }
         });
 
-        // TODO better evaluator
-
-        if (pinsUp) {
-            this.testConfig.pins.up.x.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsUp.x[index]) {
-                    this.result.errors.push('Pin \'X' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsUp.x[index]) {
-                    this.result.errors.push('Pin \'X' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
-                }
-            });
-            this.testConfig.pins.up.y.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsUp.y[index]) {
-                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsUp.y[index]) {
-                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
-                }
-            });
-            this.testConfig.pins.up.z.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsUp.z[index]) {
-                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsUp.z[index]) {
-                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is low, when it should be high. (index starts from zero)');
-                }
+        // Eval the measurement for each power source
+        powerSources.forEach((source: PowerSource) => {
+            let powerMeas: PowerMeasurement = this.result.powerMeasurements.find((el: PowerMeasurement) => {
+                return el.type === source;
             });
 
-        } else {
-            this.result.errors.push('Missing \'PinsUp\' measurement.');
-        }
+            // Eval or add error
+            if (powerMeas) {
 
-        let pinsDown: PinMeasurement = this.result.pinMeasurements.find((el: PinMeasurement) => {
-            return el.type === PinMeasurementType.Down;
+                // Compares wanted values of power sources with measured ones
+                PowerMeasurement.powerTypes.forEach((type) => {
+                    let wanted = this.testConfig.power[powerMeas.type][type];
+
+                    if (!powerMeas[type]) {
+                        this.addError('Value of \'' + type + '\' for source \'' + source + '\' is undefined');
+                    } else {
+                        if (powerMeas[type] < wanted.min) {
+                            this.addError('Value of \'' + type + '\' for source \'' + source + '\' is ' + powerMeas[type] + ', minimal allowed value is ' + wanted.min);
+                        }
+
+                        if (powerMeas[type] > wanted.max) {
+                            this.addError('Value of \'' + type + '\' for source \'' + source + '\' is ' + powerMeas[type] + ', maximal allowed value is ' + wanted.min);
+                        }
+                    }
+                });
+            } else {
+                this.addError('Missing \'' + source + '\' power measurement.');
+            }
         });
+    }
 
-        if (pinsDown) {
-            this.testConfig.pins.down.x.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsDown.x[index]) {
-                    this.result.errors.push('Pin \'X' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsDown.x[index]) {
-                    this.result.errors.push('Pin \'X' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
-                }
-            });
-            this.testConfig.pins.down.y.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsDown.y[index]) {
-                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsDown.y[index]) {
-                    this.result.errors.push('Pin \'Y' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
-                }
-            });
-            this.testConfig.pins.down.z.forEach((pin: ('0'|'1'), index: number) => {
-                if (!pinsDown.z[index]) {
-                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is undefined, perhaps missing from measurement. (index starts from zero)');
-                }
-                if (pin !== pinsDown.z[index]) {
-                    this.result.errors.push('Pin \'Z' + index + '\'' + 'is high, when it should be low. (index starts from zero)');
-                }
-            });
-        } else {
-            this.result.errors.push('Missing \'PinsDown\' measurement.');
-        }
+    private addError(error: string): void {
+        this.result.errors.push(error);
     }
 
     private serial: Serial;
@@ -298,7 +301,7 @@ export class Tester {
     private currentStep: TestStep;
     private currentTestTry: number;
     private testMessageHandler: (message: string) => void;
-    private testCallback: (error?: string) => void;
+    private testCallback: (error?: string[]) => void;
     private testConfig: any = {
         pins: {
             up: {
@@ -316,7 +319,7 @@ export class Tester {
             poe_act: {
                 vbus: {
                     min: 5,
-                    max: 6
+                    max: 200
                 },
                 v3: {
                     min: 5,

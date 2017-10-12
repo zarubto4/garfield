@@ -129,10 +129,10 @@ export class Serial extends EventEmitter {
 
     public disconnect(callback) {
 
-        Logger.info('Disconnecting Yoda');
+        Logger.info('Disconnecting serial port');
 
         this.connection.close(() => {
-            Logger.info('Yoda disconnected');
+            Logger.info('Serial is closed');
             this.connection = null;
             callback();
         });

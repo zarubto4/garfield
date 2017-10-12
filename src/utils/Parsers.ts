@@ -17,7 +17,7 @@ export class Parsers {
         powerMeasurements.forEach((meas) => {
             meas.vbus = parseFloat(Serial.getMessageValue(results.shift()));
             meas.v3 = parseFloat(Serial.getMessageValue(results.shift()));
-            meas.current = parseFloat(Serial.getMessageValue(results.shift()));
+            meas.curr = parseFloat(Serial.getMessageValue(results.shift()));
         });
 
         return powerMeasurements;

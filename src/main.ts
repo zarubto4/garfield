@@ -47,7 +47,7 @@ switch (platform) {
 const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
 
 let window;
-let tray; 
+let tray;
 
 garfield
     .on('websocket_open', notification)
@@ -59,7 +59,12 @@ garfield
         notification('TestKit disconnected');
         renderTrayContextMenu();
     })
-    .on('unauthorized', notification);
+    .on('unauthorized', notification)
+    .on('authorized', renderTrayContextMenu)
+    .on('shutdown', () => {
+        notification('Logout successful');
+        renderTrayContextMenu();
+    });
 
 app.on('ready', start);
 
@@ -94,6 +99,7 @@ function start(): void {
 
     tray = new Tray(icon);
     tray.setToolTip('Garfield App');
+    renderTrayContextMenu();
 
     notification('Garfield has started.');
 
@@ -101,7 +107,6 @@ function start(): void {
         if (!err) {
             garfield.init(data);
         }
-        renderTrayContextMenu();
     });
 }
 
@@ -113,19 +118,24 @@ function login(token: string, remember: boolean): void {
 
     garfield.init(token);
 
-    renderTrayContextMenu();
-
     if (remember) {
+
+        let saveToken = (token: string) => {
+            fs.writeFile(path.join(__dirname, '../app_data/authToken'), token, (writeErr) => { // Save token
+                Logger.error(JSON.stringify(writeErr));
+            });
+        }
+
         fs.stat(path.join(__dirname, '../app_data'), (err, stats) => { // Check dir existence
             if (err) {
                 Logger.error(JSON.stringify(err));
                 fs.mkdir(path.join(__dirname, '../app_data'), (mkErr) => { // Create dir
                     if (!mkErr) {
-                        fs.writeFile(path.join(__dirname, '../app_data/authToken'), token, (writeErr) => { // Save token
-                            Logger.error(JSON.stringify(writeErr))
-                        });
+                        saveToken(token);
                     }
                 });
+            } else {
+                saveToken(token);
             }
         });
     }
@@ -170,6 +180,23 @@ function clickMenuItem(menuItem, browserWindow, event): void {
             }).once('closed', () => {
                 window = null;
             });
+            break;
+        }
+        case 'logout': {
+
+            fs.stat(path.join(__dirname, '../app_data/authToken'), (err, stats) => { // Check file existence
+                if (err) {
+                    return;
+                }
+
+                fs.unlink(path.join(__dirname, '../app_data/authToken'), (err?) => { // Delete file
+                    if (err) {
+                        Logger.error(err);
+                    }
+                });
+            });
+
+            garfield.shutdown();
             break;
         }
         case 'reconnect_becki': {
@@ -235,19 +262,19 @@ function renderTrayContextMenu(): void {
 
         if (!garfield.hasAuth()) {
             template.push({id: 'login', label: 'Login', type: 'normal', click: clickMenuItem});
+            template.push({type: 'separator'});
+            template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem, enabled: false});
+            template.push({label: 'Select drive', submenu: submenu, enabled: false});
         } else {
             template.push({id: 'logout', label: 'Logout', type: 'normal', click: clickMenuItem});
+            template.push({type: 'separator'});            
+            if (garfield.hasBecki()) {
+                template.push({id: 'reconnect_becki', label: 'Reconnect Becki', type: 'normal', click: clickMenuItem});
+            } else {
+                template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
+            }
+            template.push({label: 'Select drive', submenu: submenu});
         }
-
-        template.push({type: 'separator'});
-
-        if (garfield.hasBecki()) {
-            template.push({id: 'reconnect_becki', label: 'Reconnect Becki', type: 'normal', click: clickMenuItem});
-        } else {
-            template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
-        }
-
-        template.push({label: 'Select drive', submenu: submenu});
 
         if (garfield.hasTester()) {
             template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem});

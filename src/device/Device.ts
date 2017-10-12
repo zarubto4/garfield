@@ -61,9 +61,9 @@ export class Device {
         });
     }
 
-    public test(callback: (err) => void): void {
+    public test(test_config: any, callback: (errors?: string[]) => void): void {
         let tester: Tester = new Tester(this.serial);
-        tester.beginTest(callback);
+        tester.beginTest(test_config, callback);
     }
 
     public writeBootloader(bootloader: Buffer, callback: (err) => void) {

@@ -1,6 +1,7 @@
 import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinary, WsMessageError,
-    WsMessageSuccess, WsMessageDeviceConfigure, WsMessageTesterConnect,
-    WsMessageTesterDisconnect, WsMessageDeviceBinaryResult } from './communication/Becki';
+    WsMessageSuccess, WsMessageDeviceConfigure, WsMessageTesterConnect, WsMessageTesterDisconnect,
+    WsMessageDeviceBinaryResult, WsMessageDeviceTestResult,
+    WsMessageDeviceTest } from './communication/Becki';
 import { ConfigManager } from './utils/ConfigManager';
 import { Configurator } from './device/Configurator';
 import { Serial } from './communication/Serial';
@@ -44,9 +45,11 @@ export class Garfield extends EventEmitter {
         }, (error, response, body) => {
             if (error || response.statusCode !== 200) {
                 Logger.warn(response.statusCode);
-                this.emit('unauthorized', 'Unauthorized, please login.')
+                this.emit('unauthorized', 'Unauthorized, please login.');
                 return;
             }
+
+            this.emit('authorized');
 
             this.person = body.person;
 
@@ -122,21 +125,32 @@ export class Garfield extends EventEmitter {
         return this.authToken ? true : false;
     }
 
-    public configure(): void {
-        this.device.configure({}, () => {
-            Logger.info('Configured');
-        });
-    }
-
-    public test(): void {
-        this.device.test(() => {
-            Logger.info('Tested');
-        });
-    }
-
     public shutdown() {
-        this.becki.sendWebSocketMessage(new IWebSocketMessage('unsubscribe_garfield'));
-        this.becki.disconnectWebSocket();
+
+        if (this.deviceDetection) {
+            clearInterval(this.deviceDetection);
+        }
+
+        if (this.device) {
+            this.device.disconnect(() => {
+                Logger.info('TestKit disconnected');
+                this.device = null;
+            });
+        }
+
+        if (this.keepAliveBecki) {
+            clearInterval(this.keepAliveBecki);
+        }
+
+        if (this.becki) {
+            this.becki.sendWebSocketMessage(new IWebSocketMessage('unsubscribe_garfield'));
+            this.becki.disconnectWebSocket();
+            this.becki = null;
+        }
+
+        this.authToken = null;
+
+        this.emit('shutdown');
     }
 
     private checkIoda() {
@@ -163,6 +177,8 @@ export class Garfield extends EventEmitter {
     }
 
     private message(message: IWebSocketMessage): void {
+
+        Logger.info('WS message: ' + JSON.stringify(message));
 
         let respond = (msg: IWebSocketMessage) => {
             if (msg) {
@@ -206,10 +222,11 @@ export class Garfield extends EventEmitter {
             }
 
             case 'device_test': {
-                this.device.test((err) => {
-                    if (err) {
-                        Logger.error(err);
-                        respond(new WsMessageError(message.message_type, err.toString()));
+                let msg: WsMessageDeviceTest = <WsMessageDeviceTest> message;
+                this.device.test(msg.test_config, (errors?: string[]) => {
+                    if (errors) {
+                        Logger.error(errors);
+                        respond(new WsMessageDeviceTestResult(errors));
                     } else {
                         respond(new WsMessageSuccess(message.message_type));
                     }
