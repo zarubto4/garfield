@@ -44,7 +44,7 @@ export class Garfield extends EventEmitter {
             }
         }, (error, response, body) => {
             if (error || response.statusCode !== 200) {
-                Logger.warn(response.statusCode);
+                // Logger.warn(response.statusCode);
                 this.emit('unauthorized', 'Unauthorized, please login.');
                 return;
             }

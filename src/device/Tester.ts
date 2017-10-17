@@ -82,7 +82,7 @@ export class Tester {
     private test(): void {
 
         if (this.currentTestTry <= 0) {
-            this.addError('Test \'' + this.currentStep + '\' failed: no response');
+            this.addError(`Test '${this.currentStep}' failed: no response`);
             this.skipTest();
         }
 
@@ -138,9 +138,9 @@ export class Tester {
 
     private setTimeout(timeout: number) {
         this.testTimeout = setTimeout(() => {
-            Logger.warn('Test \'' + this.currentStep + '\' timeout - current try: ' + this.currentTestTry);
+            Logger.warn(`Test '${this.currentStep}' timeout - current try: ${this.currentTestTry}`);
             if (this.currentTestTry <= 0) {
-                this.addError('Test \'' + this.currentStep + '\' failed: no response');
+                this.addError(`Test '${this.currentStep}' failed: no response`);
                 this.skipTest();
             }
             this.test();
@@ -148,7 +148,7 @@ export class Tester {
     }
 
     private skipTest() {
-        Logger.error('Test \'' + this.currentStep + '\' failed - skipping');
+        Logger.error(`Test '${this.currentStep}' failed - skipping`);
         switch (this.currentStep) { // Jump to next test
             case TestStep.PinsHigh: {
                 this.currentStep = TestStep.MeasureHigh;
@@ -250,14 +250,14 @@ export class Tester {
                 PinMeasurement.pinTypes.forEach((type) => {
                     this.testConfig.pins[pinMeas.type][type].forEach((pin: ('0'|'1'), index: number) => {
                         if (!pinMeas[type][index]) {
-                            this.addError('Pin \'' + type + index + '\' is undefined, perhaps missing from the measurement. (index starts from zero)');
+                            this.addError(`Pin '${type + index}' is undefined, perhaps missing from the measurement. (index starts from zero)`);
                         } else if (pinMeas[type][index] !== pin) {
-                            this.addError('Pin \'' + type + index + '\' is ' + pinMeas[type][index] + ', when it should be ' + pin + '. (index starts from zero)');
+                            this.addError(`Pin '${type + index}' is ${pinMeas[type][index]}, when it should be ${pin}. (index starts from zero)`);
                         }
                     });
                 });
             } else {
-                this.addError('Missing \'' + pinMeasType + '\' pin measurement.');
+                this.addError(`Missing '${pinMeasType}' pin measurement.`);
             }
         });
 
@@ -275,19 +275,19 @@ export class Tester {
                     let wanted = this.testConfig.power[powerMeas.type][type];
 
                     if (!powerMeas[type]) {
-                        this.addError('Value of \'' + type + '\' for source \'' + source + '\' is undefined');
+                        this.addError(`Value of '${type}' for source '${source}' is undefined`);
                     } else {
                         if (powerMeas[type] < wanted.min) {
-                            this.addError('Value of \'' + type + '\' for source \'' + source + '\' is ' + powerMeas[type] + ', minimal allowed value is ' + wanted.min);
+                            this.addError(`Value of '${type}' for source '${source}' is ${powerMeas[type]}, minimal allowed value is ${wanted.min}`);
                         }
 
                         if (powerMeas[type] > wanted.max) {
-                            this.addError('Value of \'' + type + '\' for source \'' + source + '\' is ' + powerMeas[type] + ', maximal allowed value is ' + wanted.min);
+                            this.addError(`Value of '${type}' for source '${source}' is ${powerMeas[type]}, maximal allowed value is ${wanted.max}`);
                         }
                     }
                 });
             } else {
-                this.addError('Missing \'' + source + '\' power measurement.');
+                this.addError(`Missing '${source}' power measurement.`);
             }
         });
     }

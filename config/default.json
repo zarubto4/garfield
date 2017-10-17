@@ -7,6 +7,11 @@
         "ctsrts" : true,
         "crc" : true
     },
+    "updateURL": {
+        "win": "http://localhost:3000/releases/win",
+        "darwin": "http://localhost:3000/releases/darwin",
+        "linux": "http://localhost:3000/releases/linux"
+    },
     "loggers": {
         "default": {
             "level": "trace",

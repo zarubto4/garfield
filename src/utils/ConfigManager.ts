@@ -215,6 +215,20 @@ export class ConfigManager {
                     }
                 }
             },
+            updateURL: {
+                type: 'object',
+                structure: {
+                    win: {
+                        type: 'string'
+                    },
+                    darwin: {
+                        type: 'string'
+                    },
+                    linux: {
+                        type: 'string'
+                    }
+                }
+            },
             loggers: {
                 type: 'object',
                 of: {
