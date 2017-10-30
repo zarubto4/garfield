@@ -19,6 +19,8 @@ let icon;
  *                                    *
  **************************************/
 
+try {
+
 // Do platform specific tasks
 switch (platform) {
     case 'win32': {
@@ -27,7 +29,7 @@ switch (platform) {
         }
         icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.ico'));
         Logger.info('Setting URL for updates');
-        autoUpdater.setFeedURL('http://localhost:3000/releases/win');
+        //autoUpdater.setFeedURL('http://localhost:3000/releases/win');
         break;
     }
     case 'darwin': {
@@ -92,6 +94,8 @@ usb.on('attach', function(device) {
     setTimeout(renderTrayContextMenu, 500);
 });
 
+
+
 /**************************************
  *                                    *
  * Support functions                  *
@@ -106,7 +110,7 @@ function checkForUpdates(): void {
     } else {
         Logger.info('Running in PROD mode');
         Logger.info('Check for update');
-
+/*
         autoUpdater
             .once('update-not-available', () => {
                 start();
@@ -128,7 +132,7 @@ function checkForUpdates(): void {
                 autoUpdater.quitAndInstall();
             });
 
-        autoUpdater.checkForUpdates();
+        autoUpdater.checkForUpdates();*/
     }
 }
 
@@ -390,3 +394,7 @@ function handleSquirrelEvent(): boolean {
             return true;
     }
 };
+
+} catch(e) {
+    process.exit();
+}
