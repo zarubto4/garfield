@@ -162,7 +162,7 @@ export class Becki extends EventEmitter {
         });
     }
 
-    public host = '127.0.0.1:9000';
+    public host = ConfigManager.config.get<string>('tyrionHost').trim();
 
     public protocol = 'http';
 
