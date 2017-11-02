@@ -12,7 +12,7 @@ export class Serial extends EventEmitter {
     }
 
     public static getMessageType(message: string): string {
-        message = message.replace('YODA:', '').replace('TK3G:', '');
+        message = message.replace('IODA:', '').replace('TK3G:', '');
         if (message.includes('=')) {
             return message.substring(0, message.indexOf('='));
         }

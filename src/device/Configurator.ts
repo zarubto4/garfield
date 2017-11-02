@@ -44,7 +44,7 @@ export class Configurator {
             Logger.info(JSON.stringify(this.config));
 
             // Set defaults first
-            this.connection.sendWithResponse('YODA:defaults', (res: string, err?: string) => {
+            this.connection.sendWithResponse('IODA:defaults', (res: string, err?: string) => {
                 if (!err && res === 'ok') {
                     this.queue = new Queue<Property>();
 
@@ -89,7 +89,7 @@ export class Configurator {
     private configure() {
         this.currentPropertyTry--;
         let property: Property = this.queue.getTop();
-        this.send('YODA:' + property.key + '=' + property.value);
+        this.send('IODA:' + property.key + '=' + property.value);
         this.currentPropertyTimeout = setTimeout(() => {
             Logger.info('Response timeout - number of remaining tries = ' + this.currentPropertyTry);
             if (this.currentPropertyTry === 0) {
@@ -112,7 +112,7 @@ export class Configurator {
 
         Logger.info('Configurator got response on configure = ' + message);
 
-        message = message.replace('YODA:', ''); // Remove prefix
+        message = message.replace('IODA:', ''); // Remove prefix
 
         let type: string = Serial.getMessageType(message);
         let value: string = Serial.getMessageValue(message);

@@ -159,10 +159,10 @@ export class Garfield extends EventEmitter {
         }
         Logger.info('Checking for Ioda');
         this.device.ioda_connected = true;
-        this.device.message('TK3G:yoda_bootloader').then((response: string) => {
+        this.device.message('TK3G:ioda_bootloader').then((response: string) => {
             if (response === 'ok') {
                 Logger.info('Opened bootloader, asking for full_id');
-                this.device.message('YODA:fullid').then((full_id: string) => {
+                this.device.message('IODA:fullid').then((full_id: string) => {
                     Logger.info('Got full_id: ' + full_id);
                     this.becki.sendWebSocketMessage(new WsMessageDeviceConnect(full_id)); // Connected device has at least bootloader
                 }, (err) => {

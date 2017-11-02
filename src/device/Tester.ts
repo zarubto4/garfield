@@ -93,7 +93,7 @@ export class Tester {
         switch (this.currentStep) {
             case TestStep.PinsHigh: {
                 this.setTimeout(5000);
-                this.serial.send('YODA:pins_up');
+                this.serial.send('IODA:pins_up');
                 break;
             }
             case TestStep.MeasureHigh: {
@@ -103,7 +103,7 @@ export class Tester {
             }
             case TestStep.PinsLow: {
                 this.setTimeout(5000);
-                this.serial.send('YODA:pins_down');
+                this.serial.send('IODA:pins_down');
                 break;
             }
             case TestStep.MeasureLow: {
@@ -188,7 +188,7 @@ export class Tester {
 
         switch (this.currentStep) {
             case TestStep.PinsHigh: {
-                if (from === 'YODA' && message === 'ok') {
+                if (from === 'IODA' && message === 'ok') {
                     this.currentStep = TestStep.MeasureHigh;
                     this.currentTestTry = 3;
                 }
@@ -203,7 +203,7 @@ export class Tester {
                 break;
             }
             case TestStep.PinsLow: {
-                if (from === 'YODA' && type === 'ok') {
+                if (from === 'IODA' && type === 'ok') {
                     this.currentStep = TestStep.MeasureLow;
                     this.currentTestTry = 3;
                 }

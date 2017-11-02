@@ -51,7 +51,7 @@ export class Device {
     }
 
     public configure(config: any, callback: (err?) => void): void {
-        this.message('TK3G:yoda_bootloader').then((response) => {
+        this.message('TK3G:ioda_bootloader').then((response) => {
             if (response === 'ok') {
                 let configurator: Configurator = new Configurator(config, this.serial);
                 configurator.beginConfiguration(callback);
