@@ -81,7 +81,7 @@ export class Garfield extends EventEmitter {
         serial.once('connected' , () => {
             this.device = new Device(drive, drive, serial);
             this.becki.sendWebSocketMessage(new WsMessageTesterConnect('TK3G'));
-            this.setDevicetDetection();
+            // this.setDevicetDetection();
             this.emit('tester_connected');
 
         }).once('connection_error', (err) => {
@@ -170,7 +170,7 @@ export class Garfield extends EventEmitter {
                 });
             }
 
-            this.setDevicetDetection();
+            // this.setDevicetDetection();
         }).catch((err) => {
             // TODO tester not responding
         });
@@ -187,7 +187,7 @@ export class Garfield extends EventEmitter {
                 this.becki.sendWebSocketMessage(msg);
             }
             if (this.hasTester()) {
-                this.setDevicetDetection();
+                // this.setDevicetDetection();
             }
         };
 
