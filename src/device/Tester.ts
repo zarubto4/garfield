@@ -112,7 +112,7 @@ export class Tester {
                 break;
             }
             case TestStep.MeasurePower: {
-                this.setTimeout(5000);
+                this.setTimeout(20000);
                 this.serial.send('TK3G:meas_pwr');
                 break;
             }
@@ -188,7 +188,7 @@ export class Tester {
 
         switch (this.currentStep) {
             case TestStep.PinsHigh: {
-                if (from === 'IODA' && message === 'ok') {
+                if (from === 'IODA' && type === 'pins_up' && value === 'ok') {
                     this.currentStep = TestStep.MeasureHigh;
                     this.currentTestTry = 3;
                 }
@@ -203,7 +203,7 @@ export class Tester {
                 break;
             }
             case TestStep.PinsLow: {
-                if (from === 'IODA' && type === 'ok') {
+                if (from === 'IODA' && type === 'pins_down' && value === 'ok') {
                     this.currentStep = TestStep.MeasureLow;
                     this.currentTestTry = 3;
                 }

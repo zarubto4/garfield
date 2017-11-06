@@ -74,6 +74,15 @@ export class WsMessageDeviceDisconnect extends IWebSocketMessage {
     }
 }
 
+export class WsMessageDeviceId extends IWebSocketMessage {
+    device_id: string;
+
+    constructor(device_id: string) {
+        super('device_id');
+        this.device_id = device_id;
+    }
+}
+
 export class WsMessageDeviceBinary extends IWebSocketMessage {
     url: string; // url for download
     type: ('bootloader' | 'firmware'); // bootloader or firmware

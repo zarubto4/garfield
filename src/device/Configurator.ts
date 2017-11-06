@@ -87,15 +87,15 @@ export class Configurator {
     }
 
     private configure() {
-        this.currentPropertyTry--;
         let property: Property = this.queue.getTop();
+        if (this.currentPropertyTry === 0) {
+            this.endConfiguration('Failed to set property \'' + property + '\'');
+            return;
+        }
         this.send('IODA:' + property.key + '=' + property.value);
+        this.currentPropertyTry--;
         this.currentPropertyTimeout = setTimeout(() => {
             Logger.info('Response timeout - number of remaining tries = ' + this.currentPropertyTry);
-            if (this.currentPropertyTry === 0) {
-                this.endConfiguration('TimeOut for setting property \'' + property + '\'');
-                return;
-            }
             this.configure();
         }, 10000);
     }
@@ -119,7 +119,7 @@ export class Configurator {
 
         let property: Property = this.queue.getTop();
 
-        Logger.info('Current property = ' + type + ' value = ' + value);
+        Logger.info('Current property = ' + type + ', value = ' + value);
 
         if (property.value === value) { // If the current property was changed successfully
             this.queue.pop(); // Shifts queue, so the first element is out

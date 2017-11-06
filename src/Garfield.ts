@@ -1,6 +1,6 @@
 import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinary, WsMessageError,
     WsMessageSuccess, WsMessageDeviceConfigure, WsMessageTesterConnect, WsMessageTesterDisconnect,
-    WsMessageDeviceBinaryResult, WsMessageDeviceTestResult,
+    WsMessageDeviceBinaryResult, WsMessageDeviceTestResult, WsMessageDeviceId,
     WsMessageDeviceTest } from './communication/Becki';
 import { ConfigManager } from './utils/ConfigManager';
 import { Configurator } from './device/Configurator';
@@ -208,6 +208,24 @@ export class Garfield extends EventEmitter {
                 }
                 break;
             }
+            case 'device_id': {
+                this.device.message('TK3G:ioda_bootloader').then((response: string) => {
+                    if (response === 'ok') {
+                        Logger.info('Opened bootloader, asking for full_id');
+                        this.device.message('IODA:fullid').then((full_id: string) => {
+                            Logger.info('Got full_id: ' + full_id);
+                            respond(new WsMessageDeviceId(full_id));
+                        }, (err) => {
+                            respond(new WsMessageError(message.message_type, 'cannot get full id of device'));
+                        });
+                    }
+                }).catch((err) => {
+                    respond(new WsMessageError(message.message_type, 'cannot get full id of device'));
+                    this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
+                });
+                
+                break;
+            }
             case 'device_configure': {
                 let msg: WsMessageDeviceConfigure = <WsMessageDeviceConfigure> message;
                 this.device.configure(msg.configuration, (err) => {
@@ -261,7 +279,7 @@ export class Garfield extends EventEmitter {
                                         Logger.info('BootLoader upload was successfull');
                                         setTimeout(() => {
                                             respond(new WsMessageDeviceBinaryResult(msg.type));
-                                        }, 2500);
+                                        }, 10000);
                                     }
                                 });
                             } else {
@@ -272,7 +290,7 @@ export class Garfield extends EventEmitter {
                                     } else {
                                         setTimeout(() => {
                                             respond(new WsMessageDeviceBinaryResult(msg.type));
-                                        }, 2500);
+                                        }, 10000);
                                     }
                                 });
                             }
