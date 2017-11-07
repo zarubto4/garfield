@@ -20,12 +20,12 @@ export class IWebSocketMessage {
 
 export class WsMessageError extends IWebSocketMessage {
     status: string;
-    message: string;
+    error: string;
 
     constructor(message_type: string, error_message: string) {
         super(message_type); // jediné, co se dopisuje je Message_type, ostatní se generuje v nadřazené třídě
         this.status = 'error';
-        this.message = error_message;
+        this.error = error_message;
     }
 }
 

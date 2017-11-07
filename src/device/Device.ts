@@ -51,14 +51,20 @@ export class Device {
     }
 
     public configure(config: any, callback: (err?) => void): void {
-        this.message('TK3G:ioda_bootloader').then((response) => {
-            if (response === 'ok') {
-                let configurator: Configurator = new Configurator(config, this.serial);
-                configurator.beginConfiguration(callback);
-            }
-        }).catch((err) => {
-            callback('Unable to switch IODA to bootloader');
-        });
+        setTimeout(() => {
+            this.message('TK3G:ioda_bootloader').then((response) => {
+                if (response === 'ok') {
+                    setTimeout(() => {
+                        let configurator: Configurator = new Configurator(config, this.serial);
+                        configurator.beginConfiguration(callback);
+                    }, 5000);
+                } else {
+                    callback('Unable to switch IODA to bootloader');
+                }
+            }).catch((err) => {
+                callback('Unable to switch IODA to bootloader');
+            });
+        }, 5000);
     }
 
     public test(test_config: any, callback: (errors?: string[]) => void): void {

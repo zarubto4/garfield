@@ -114,9 +114,7 @@ export class Serial extends EventEmitter {
                         });
 
                         this.once('connected', () => {
-                            this.sendWithResponse('TK3G:ioda_bootloader', (response: string, err?: string) => {
-                                this.blink(5, 150);
-                            });
+                            this.blink(5, 150);
                         });
 
                         this.connectionCleanUp(opened_connections);

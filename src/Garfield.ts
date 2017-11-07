@@ -88,7 +88,13 @@ export class Garfield extends EventEmitter {
             Logger.error(err);
 
         }).on('button', () => {
-            this.checkIoda();
+            if (!this.buttonClicked) {
+                this.buttonClicked = true;
+                setTimeout(() => { // A little delay before the button can be clicked again
+                    this.buttonClicked = false;
+                }, 5000);
+                this.checkIoda();
+            }
         });
 
         serial.connect();
@@ -223,7 +229,6 @@ export class Garfield extends EventEmitter {
                     respond(new WsMessageError(message.message_type, 'cannot get full id of device'));
                     this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
                 });
-                
                 break;
             }
             case 'device_configure': {
@@ -248,6 +253,27 @@ export class Garfield extends EventEmitter {
                     } else {
                         respond(new WsMessageSuccess(message.message_type));
                     }
+                });
+                break;
+            }
+
+            case 'device_backup': {
+                this.device.message('IODA:firmware=backup').then((res: string) => {
+                    if (res === 'ok') {
+                        this.device.message('TK3G:ioda_restart').then((restart_res: string) => {
+                            if (restart_res === 'ok') {
+                                respond(new WsMessageSuccess(message.message_type));
+                            } else {
+                                respond(new WsMessageError(message.message_type, 'Failed to restart after backup'));
+                            }
+                        }, (err) => {
+                            respond(new WsMessageError(message.message_type, err.toString()));
+                        });
+                    } else {
+                        respond(new WsMessageError(message.message_type, 'Failed to do backup'));
+                    }
+                }, (err) => {
+                    respond(new WsMessageError(message.message_type, err.toString()));
                 });
                 break;
             }
@@ -278,7 +304,33 @@ export class Garfield extends EventEmitter {
                                     } else {
                                         Logger.info('BootLoader upload was successfull');
                                         setTimeout(() => {
-                                            respond(new WsMessageDeviceBinaryResult(msg.type));
+                                            this.device.message('TK3G:ioda_bootloader').then((boot_res: string) => {
+                                                if (boot_res === 'ok') {
+                                                    this.device.message('IODA:defaults').then((def_res: string) => {
+                                                        Logger.info('Set defaults');
+                                                        if (def_res === 'ok') {
+                                                            Logger.info('Opened bootloader, set configured 1');
+                                                            this.device.message('IODA:configured=1').then((conf_res: string) => {
+                                                                Logger.info('Configured to 1');
+                                                                if (conf_res === '1') {
+                                                                    respond(new WsMessageDeviceBinaryResult(msg.type));
+                                                                } else {
+                                                                    respond(new WsMessageError(message.message_type, 'cannot set configured'));
+                                                                }
+                                                            }, (conf_err) => {
+                                                                respond(new WsMessageError(message.message_type, 'cannot start bootloader'));
+                                                            });
+                                                        } else {
+                                                            respond(new WsMessageError(message.message_type, 'cannot set defaults'));
+                                                        }
+                                                    }, (def_err) => {
+                                                        respond(new WsMessageError(message.message_type, 'cannot start bootloader'));
+                                                    });
+                                                }
+                                            }).catch((boot_err) => {
+                                                respond(new WsMessageError(message.message_type, 'cannot switch ioda to bootloader'));
+                                                this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
+                                            });
                                         }, 10000);
                                     }
                                 });
@@ -327,6 +379,7 @@ export class Garfield extends EventEmitter {
     private keepAliveBecki;
     private becki: Becki; // Object for communication with Becki
     private authToken: string;
+    private buttonClicked: boolean;
 }
 
 export interface IPerson {
