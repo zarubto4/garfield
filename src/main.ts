@@ -24,19 +24,24 @@ try {
 // Do platform specific tasks
     switch (platform) {
         case 'win32': {
+            Logger.info('Running on Windows platform');
             if (handleSquirrelEvent()) {
                 app.quit();
             }
 
             icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.ico'));
-            Logger.info('Setting URL for updates');
-        // autoUpdater.setFeedURL('http://localhost:3000/releases/win');
+            // Logger.info('Setting URL for updates');
+            // autoUpdater.setFeedURL('http://localhost:3000/releases/win');
             break;
         }
         case 'darwin': {
+            Logger.info('Running on Mac platform');
+            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
             break;
         }
         case 'linux': {
+            Logger.info('Running on Linux platform');
+            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
             break;
         }
         default:
@@ -105,33 +110,34 @@ try {
 
     function checkForUpdates(): void {
 
-        if (isDev) {
-            Logger.info('Running in DEV mode');
-            start();
-        } else {
-            Logger.info('Running in PROD mode');
-            Logger.info('Check for update');
-            /*
-             autoUpdater
-             .once('update-not-available', () => {
-             start();
-             }).once('update-available', () => {
-             Logger.info('Update available - downloading');
-             window = new BrowserWindow({show: false, height: 170, width: 450, icon: icon});
-             window.loadURL(url.format({
-             pathname: path.join(__dirname, '../views/update.html'),
-             protocol: 'file:',
-             slashes: true
-             }));
-             window.once('ready-to-show', () => {
-             window.show();
-             }).once('closed', () => {
-             window = null;
-             });
-             }).once('update-downloaded', () => {
-             Logger.info('Update downloaded');
-             autoUpdater.quitAndInstall();
-             });
+    if (isDev) {
+        Logger.info('Running in DEV mode');
+        start();
+    } else {
+        Logger.info('Running in PROD mode');
+        Logger.info('Check for update');
+        start();
+/*
+        autoUpdater
+            .once('update-not-available', () => {
+                start();
+            }).once('update-available', () => {
+                Logger.info('Update available - downloading');
+                window = new BrowserWindow({show: false, height: 170, width: 450, icon: icon});
+                window.loadURL(url.format({
+                    pathname: path.join(__dirname, '../views/update.html'),
+                    protocol: 'file:',
+                    slashes: true
+                }));
+                window.once('ready-to-show', () => {
+                    window.show();
+                }).once('closed', () => {
+                    window = null;
+                });
+            }).once('update-downloaded', () => {
+                Logger.info('Update downloaded');
+                autoUpdater.quitAndInstall();
+            });
 
              autoUpdater.checkForUpdates();*/
         }
