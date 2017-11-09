@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "drivelist": "^5.2.4",
-    "electron": "^1.7.9",
+    "electron": "1.7.5",
     "electron-is-dev": "^0.3.0",
     "logger": "git+ssh://git@github.com/ByzanceIoT/js-logger.git#v1.2.1",
     "promise": "^8.0.1",
