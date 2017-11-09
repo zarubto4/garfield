@@ -51,7 +51,7 @@ export class Serial extends EventEmitter {
 
                 let temp_connection: SerialPort = new SerialPort(port.comName, {baudRate: 115200, rtscts: true}, (connectionError: any) => {
                     if (connectionError) {
-                        Logger.error(connectionError);
+                        Logger.error('Connection error: ' + connectionError.toString());
                         // this.emit('connection_error', connectionError.message);
                     } else {
                         Logger.info('Connected to ' + temp_connection.path);
