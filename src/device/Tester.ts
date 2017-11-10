@@ -1,8 +1,9 @@
-import { Serial } from '../communication/Serial';
+import { Serial, SerialMessage } from '../communication/Serial';
 import { Parsers } from '../utils/Parsers';
+import { Queue } from '../utils/Queue';
 import { Logger } from 'logger';
 
-enum TestStep {
+enum TestType {
     PinsHigh = 'Pins Up',
     MeasureHigh = 'Measure Pins Up',
     PinsLow = 'Pins Down',
@@ -57,6 +58,45 @@ export class PinMeasurement {
     }
 }
 
+class Test {
+    constructor(type: TestType) {
+        this.type = type;
+        switch (type) {
+            case TestType.PinsHigh: {
+                this.message = new SerialMessage('IODA', 'pins_up', null , 5000);
+                break;
+            }
+            case TestType.MeasureHigh: {
+                this.message = new SerialMessage('TK3G', 'meas_pins', null , 5000);
+                break;
+            }
+            case TestType.PinsLow: {
+                this.message = new SerialMessage('IODA', 'pins_down', null , 5000);
+                break;
+            }
+            case TestType.MeasureLow: {
+                this.message = new SerialMessage('TK3G', 'meas_pins', null , 5000);
+                break;
+            }
+            case TestType.MeasurePower: {
+                this.message = new SerialMessage('TK3G', 'meas_pwr', null , 20000);
+                break;
+            }
+        }
+    }
+
+    public getMessage(): SerialMessage {
+        return this.message;
+    }
+
+    public getType(): TestType {
+        return this.type;
+    }
+
+    private type: TestType;
+    private message: SerialMessage;
+}
+
 export class Tester {
 
     public result: TestResult;
@@ -65,168 +105,70 @@ export class Tester {
         this.serial = serial;
     }
 
-    public beginTest(test_config: any, callback: (errors?: string[]) => void) {
-        Logger.info('Beggining test with config: ' + JSON.stringify(test_config));
-        this.result = new TestResult();
-        this.testConfig = test_config;
-        this.currentStep = TestStep.PinsHigh;
-        this.currentTestTry = 3;
-        this.testCallback = callback;
-        this.testMessageHandler = this.onTestMessage.bind(this);
+    public beginTest(testConfig: any, callback: (errors?: string[]) => void) {
+        Logger.info('Tester::beginTest - config: ' + JSON.stringify(testConfig));
 
-        this.serial.on('message', this.testMessageHandler);
+        this.queue = new Queue<Test>();
+
+        this.queue.push(new Test(TestType.PinsHigh));
+        this.queue.push(new Test(TestType.MeasureHigh));
+        this.queue.push(new Test(TestType.PinsLow));
+        this.queue.push(new Test(TestType.MeasureLow));
+        this.queue.push(new Test(TestType.MeasurePower));
+
+        this.result = new TestResult();
+        this.testConfig = testConfig;
+        this.testCallback = callback;
 
         this.test();
     }
 
-    private test(): void {
+    private test() {
+        let test: Test = this.queue.getTop();
+        this.serial.send(test.getMessage()).then((response: string) => {
+            if (response) {
+                switch (test.getType()) {
+                    case TestType.MeasureHigh: {
+                        this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Up, response));
+                        break;
+                    }
+                    case TestType.MeasureLow: {
+                        this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Down, response));
+                        break;
+                    }
+                    case TestType.MeasurePower: {
+                        this.result.powerMeasurements = Parsers.parsePowerMeasurement(response);
+                        break;
+                    }
+                }
+                this.continue();
+            } else {
+                this.addError(`Test '${test.getType()}' failed: no response`);
+                Logger.error(`Test '${test.getType()}' failed: no response`);
+            }
+        }, (error) => {
+            this.addError(`Test '${test.getType()}' failed: ${error}`);
+            Logger.error(`Test '${test.getType()}' failed - skipping: ${error}`);
+            this.continue();
+        });
+    }
 
-        if (this.currentTestTry <= 0) {
-            this.addError(`Test '${this.currentStep}' failed: no response`);
-            this.skipTest();
-        }
-
-        Logger.info('Beggining test: ' + this.currentStep);
-
-        this.currentTestTry--;
-
-        switch (this.currentStep) {
-            case TestStep.PinsHigh: {
-                this.setTimeout(5000);
-                this.serial.send('IODA:pins_up');
-                break;
-            }
-            case TestStep.MeasureHigh: {
-                this.setTimeout(5000);
-                this.serial.send('TK3G:meas_pins');
-                break;
-            }
-            case TestStep.PinsLow: {
-                this.setTimeout(5000);
-                this.serial.send('IODA:pins_down');
-                break;
-            }
-            case TestStep.MeasureLow: {
-                this.setTimeout(5000);
-                this.serial.send('TK3G:meas_pins');
-                break;
-            }
-            case TestStep.MeasurePower: {
-                this.setTimeout(20000);
-                this.serial.send('TK3G:meas_pwr');
-                break;
-            }
-            case TestStep.Finish: {
-                this.endTest();
-                break;
-            }
-            default:
-                // code...
-                break;
+    private continue(): void {
+        this.queue.pop();
+        if (this.queue.isEmpty()) {
+            this.endTest();
+        } else {
+            this.test();
         }
     }
 
     private endTest() {
-        this.serial.removeListener('message', this.testMessageHandler);
         this.evalTest();
         if (this.result.errors.length > 0) {
             this.testCallback(this.result.errors);
         } else {
             this.testCallback();
         }
-    }
-
-    private setTimeout(timeout: number) {
-        this.testTimeout = setTimeout(() => {
-            Logger.warn(`Test '${this.currentStep}' timeout - current try: ${this.currentTestTry}`);
-            if (this.currentTestTry <= 0) {
-                this.addError(`Test '${this.currentStep}' failed: no response`);
-                this.skipTest();
-            }
-            this.test();
-        }, timeout);
-    }
-
-    private skipTest() {
-        Logger.error(`Test '${this.currentStep}' failed - skipping`);
-        switch (this.currentStep) { // Jump to next test
-            case TestStep.PinsHigh: {
-                this.currentStep = TestStep.MeasureHigh;
-                break;
-            }
-            case TestStep.MeasureHigh: {
-                this.currentStep = TestStep.PinsLow;
-                break;
-            }
-            case TestStep.PinsLow: {
-                this.currentStep = TestStep.MeasureLow;
-                break;
-            }
-            case TestStep.MeasureLow: {
-                this.currentStep = TestStep.MeasurePower;
-                break;
-            }
-            case TestStep.MeasurePower: {
-                this.currentStep = TestStep.Finish;
-                break;
-            }
-        }
-    }
-
-    private onTestMessage(message: string) {
-        clearTimeout(this.testTimeout);
-
-        Logger.info('Tester got response on test = ' + message);
-
-        let from: string = Serial.getMessageSender(message);
-        let type: string = Serial.getMessageType(message);
-        let value: string = Serial.getMessageValue(message);
-
-        message = message.substring(message.indexOf(':') + 1); // Remove prefix
-
-        Logger.info('Current step = ' + this.currentStep);
-
-        switch (this.currentStep) {
-            case TestStep.PinsHigh: {
-                if (from === 'IODA' && type === 'pins_up' && value === 'ok') {
-                    this.currentStep = TestStep.MeasureHigh;
-                    this.currentTestTry = 3;
-                }
-                break;
-            }
-            case TestStep.MeasureHigh: {
-                if (from === 'TK3G' && type === 'meas_pins') {
-                    this.currentStep = TestStep.PinsLow;
-                    this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Up, value));
-                    this.currentTestTry = 3;
-                }
-                break;
-            }
-            case TestStep.PinsLow: {
-                if (from === 'IODA' && type === 'pins_down' && value === 'ok') {
-                    this.currentStep = TestStep.MeasureLow;
-                    this.currentTestTry = 3;
-                }
-                break;
-            }
-            case TestStep.MeasureLow: {
-                if (from === 'TK3G' && type === 'meas_pins') {
-                    this.currentStep = TestStep.MeasurePower;
-                    this.result.pinMeasurements.push(Parsers.parsePinMeasurement(PinMeasurementType.Down, value));
-                    this.currentTestTry = 3;
-                }
-                break;
-            }
-            case TestStep.MeasurePower: {
-                if (from === 'TK3G' && type === 'meas_pwr') {
-                    this.currentStep = TestStep.Finish;
-                    this.result.powerMeasurements = Parsers.parsePowerMeasurement(value);
-                    this.currentTestTry = 3;
-                }
-                break;
-            }
-        }
-        this.test();
     }
 
     private evalTest(): void {
@@ -296,11 +238,8 @@ export class Tester {
         this.result.errors.push(error);
     }
 
+    private queue: Queue<Test>;
     private serial: Serial;
-    private testTimeout: any;
-    private currentStep: TestStep;
-    private currentTestTry: number;
-    private testMessageHandler: (message: string) => void;
     private testCallback: (error?: string[]) => void;
     private testConfig: any = {
         pins: {

@@ -2,9 +2,9 @@ import { Becki, WsMessageDeviceConnect , IWebSocketMessage, WsMessageDeviceBinar
     WsMessageSuccess, WsMessageDeviceConfigure, WsMessageTesterConnect, WsMessageTesterDisconnect,
     WsMessageDeviceBinaryResult, WsMessageDeviceTestResult, WsMessageDeviceId,
     WsMessageDeviceTest } from './communication/Becki';
+import { Serial, SerialMessage } from './communication/Serial';
 import { ConfigManager } from './utils/ConfigManager';
 import { Configurator } from './device/Configurator';
-import { Serial } from './communication/Serial';
 import { Tyrion } from './communication/Tyrion';
 import { Device } from './device/Device';
 import { Tester } from './device/Tester';
@@ -58,16 +58,13 @@ export class Garfield extends EventEmitter {
             this.becki = new Becki(token);
 
             this.becki
-                .once('open', () => {
-                    this.emit('websocket_open', 'Becki is connected.');
-                    this.keepAliveBecki = setInterval(() => {
-                        this.becki.sendWebSocketMessage(new IWebSocketMessage('keepalive'));
-                    }, 5000);
-                })
+                .on('open', () => { this.emit('websocket_open', 'Becki is connected.'); })
+                .on('close', () => { this.emit('websocket_closed', 'Becki is disconnected.'); })
                 .on('subscribe_becki', this.messageHandler)
                 .on('device_configure', this.messageHandler)
                 .on('device_test', this.messageHandler)
-                .on('device_binary', this.messageHandler);
+                .on('device_binary', this.messageHandler)
+                .on('device_backup', this.messageHandler);
 
             this.becki.connectWebSocket();
         });
@@ -165,10 +162,10 @@ export class Garfield extends EventEmitter {
         }
         Logger.info('Checking for Ioda');
         this.device.ioda_connected = true;
-        this.device.message('TK3G:ioda_bootloader').then((response: string) => {
+        this.device.send(new SerialMessage('TK3G', 'ioda_bootloader')).then((response: string) => {
             if (response === 'ok') {
                 Logger.info('Opened bootloader, asking for full_id');
-                this.device.message('IODA:fullid').then((full_id: string) => {
+                this.device.send(new SerialMessage('IODA', 'fullid', null, 2000)).then((full_id: string) => {
                     Logger.info('Got full_id: ' + full_id);
                     this.becki.sendWebSocketMessage(new WsMessageDeviceConnect(full_id)); // Connected device has at least bootloader
                 }, (err) => {
@@ -177,14 +174,14 @@ export class Garfield extends EventEmitter {
             }
 
             // this.setDevicetDetection();
-        }).catch((err) => {
+        }, (error) => {
             // TODO tester not responding
         });
     }
 
     private message(message: IWebSocketMessage): void {
 
-        Logger.info('WS message: ' + JSON.stringify(message));
+        Logger.info('Garfield::message - New WS message: ' + JSON.stringify(message));
 
         let respond = (msg: IWebSocketMessage) => {
             if (msg) {
@@ -215,10 +212,10 @@ export class Garfield extends EventEmitter {
                 break;
             }
             case 'device_id': {
-                this.device.message('TK3G:ioda_bootloader').then((response: string) => {
+                this.device.send(new SerialMessage('TK3G', 'ioda_bootloader')).then((response: string) => {
                     if (response === 'ok') {
                         Logger.info('Opened bootloader, asking for full_id');
-                        this.device.message('IODA:fullid').then((full_id: string) => {
+                        this.device.send(new SerialMessage('IODA', 'fullid')).then((full_id: string) => {
                             Logger.info('Got full_id: ' + full_id);
                             respond(new WsMessageDeviceId(full_id));
                         }, (err) => {
@@ -258,9 +255,9 @@ export class Garfield extends EventEmitter {
             }
 
             case 'device_backup': {
-                this.device.message('IODA:firmware=backup').then((res: string) => {
+                this.device.send(new SerialMessage('IODA', 'firmware', 'backup', 30000)).then((res: string) => {
                     if (res === 'ok') {
-                        this.device.message('TK3G:ioda_restart').then((restart_res: string) => {
+                        this.device.send(new SerialMessage('TK3G', 'ioda_restart')).then((restart_res: string) => {
                             if (restart_res === 'ok') {
                                 respond(new WsMessageSuccess(message.message_type));
                             } else {
@@ -296,38 +293,48 @@ export class Garfield extends EventEmitter {
                             respond(new WsMessageError(msg.message_type, 'Unable to download binary, status was ' + response.statusCode));
                         } else {
                             if (msg.type === 'bootloader') {
-                                Logger.info('It is a bootloader');
+                                Logger.info('Garfield::message - message_type: device_binary, beggining bootloader upload');
                                 this.device.writeBootloader(body, (err) => {
                                     if (err) {
                                         Logger.error(err);
                                         respond(new WsMessageError(msg.message_type, err.toString()));
                                     } else {
-                                        Logger.info('BootLoader upload was successfull');
+                                        Logger.info('Garfield::message - message_type: device_binary, bootloader upload completed');
                                         setTimeout(() => {
-                                            this.device.message('TK3G:ioda_bootloader').then((boot_res: string) => {
+                                            this.device.send(new SerialMessage('TK3G', 'ioda_bootloader')).then((boot_res: string) => {
                                                 if (boot_res === 'ok') {
-                                                    this.device.message('IODA:defaults').then((def_res: string) => {
-                                                        Logger.info('Set defaults');
-                                                        if (def_res === 'ok') {
-                                                            Logger.info('Opened bootloader, set configured 1');
-                                                            this.device.message('IODA:configured=1').then((conf_res: string) => {
-                                                                Logger.info('Configured to 1');
-                                                                if (conf_res === '1') {
-                                                                    respond(new WsMessageDeviceBinaryResult(msg.type));
+                                                    Logger.info('Garfield::message - message_type: device_binary, restart to bootloader completed');
+                                                    this.device.send(new SerialMessage('IODA', 'ping', null, 2000)).then((ping_res: string) => {
+                                                        if (ping_res === 'ok') {
+                                                            this.device.send(new SerialMessage('IODA', 'defaults')).then((def_res: string) => {
+                                                                if (def_res === 'ok') {
+                                                                    Logger.info('Garfield::message - message_type: device_binary, defaults set');
+                                                                    this.device.send(new SerialMessage('IODA', 'configured', '1')).then((conf_res: string) => {
+                                                                        if (conf_res === '1') {
+                                                                            Logger.info('Garfield::message - message_type: device_binary, configured set');
+                                                                            respond(new WsMessageDeviceBinaryResult(msg.type));
+                                                                        } else {
+                                                                            respond(new WsMessageError(message.message_type, 'cannot set configured'));
+                                                                        }
+                                                                    }, (conf_err) => {
+                                                                        respond(new WsMessageError(message.message_type, 'bootloader not responding'));
+                                                                    });
                                                                 } else {
-                                                                    respond(new WsMessageError(message.message_type, 'cannot set configured'));
+                                                                    respond(new WsMessageError(message.message_type, 'cannot set defaults'));
                                                                 }
-                                                            }, (conf_err) => {
-                                                                respond(new WsMessageError(message.message_type, 'cannot start bootloader'));
+                                                            }, (def_err) => {
+                                                                respond(new WsMessageError(message.message_type, 'bootloader not responding'));
                                                             });
                                                         } else {
-                                                            respond(new WsMessageError(message.message_type, 'cannot set defaults'));
+                                                            respond(new WsMessageError(message.message_type, 'ping bootloader failed'));
                                                         }
-                                                    }, (def_err) => {
-                                                        respond(new WsMessageError(message.message_type, 'cannot start bootloader'));
+                                                    }, (ping_err: string) => {
+                                                        respond(new WsMessageError(message.message_type, 'bootloader not responding'));
                                                     });
+                                                } else {
+                                                    respond(new WsMessageError(message.message_type, 'cannot switch ioda to bootloader'));
                                                 }
-                                            }).catch((boot_err) => {
+                                            }, (boot_err) => {
                                                 respond(new WsMessageError(message.message_type, 'cannot switch ioda to bootloader'));
                                                 this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
                                             });
@@ -361,16 +368,14 @@ export class Garfield extends EventEmitter {
 
     private setDevicetDetection() {
         this.deviceDetection = setInterval(() => { // Periodicaly check if testKit is connected
-            this.device.message('TK3G:meas_pwr')
-                .then((res) => {
-                    Logger.info(res);
-                })
-                .catch((err) => {
-                    this.device.disconnect(() => {
-                        this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
-                        this.device = null;
-                    });
+            this.device.send(new SerialMessage('TK3G', 'meas_pwr')).then((res) => {
+                Logger.info(res);
+            }, (err) => {
+                this.device.disconnect(() => {
+                    this.becki.sendWebSocketMessage(new WsMessageTesterDisconnect('TK3G'));
+                    this.device = null;
                 });
+            });
         }, 5000);
     }
 

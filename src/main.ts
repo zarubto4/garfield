@@ -62,6 +62,7 @@ try {
 
     garfield
         .on('websocket_open', notification)
+        .on('websocket_closed', notification)
         .on('tester_connected', () => {
             notification('TestKit connected');
             renderTrayContextMenu();
@@ -110,13 +111,13 @@ try {
 
     function checkForUpdates(): void {
 
-    if (isDev) {
-        Logger.info('Running in DEV mode');
-        start();
-    } else {
-        Logger.info('Running in PROD mode');
-        Logger.info('Check for update');
-        start();
+        if (isDev) {
+            Logger.info('Running in DEV mode');
+            start();
+        } else {
+            Logger.info('Running in PROD mode');
+            Logger.info('Check for update');
+            start();
 /*
         autoUpdater
             .once('update-not-available', () => {
@@ -145,7 +146,7 @@ try {
 
     function start(): void {
 
-        Logger.info('Start Garfield');
+        Logger.info('main::start - start Garfield');
 
         tray = new Tray(icon);
         tray.setToolTip('Garfield App');
@@ -193,7 +194,7 @@ try {
 
     function getTyrionUrl(): string {
 
-        Logger.info('getTyrionUrl: getting url');
+        Logger.info('main::getTyrionUrl: getting url');
 
         let host = ConfigManager.config.get<string>('tyrionHost').trim();
         let secured = ConfigManager.config.get<boolean>('tyrionSecured');
@@ -215,7 +216,7 @@ try {
     }
 
     function clickMenuItem(menuItem, browserWindow, event): void {
-        Logger.info('Click on button: ', menuItem.id);
+        Logger.info('main::clickMenuItem - click on button: ', menuItem.id);
 
         switch (menuItem.id) {
             case 'login': {
@@ -297,7 +298,7 @@ try {
                     return; // System drives will be skipped
                 }
 
-                Logger.info('renderTrayContextMenu: rendering button for drive: ' + drive.displayName);
+                Logger.info('main::renderTrayContextMenu - rendering button for drive: ' + drive.displayName);
 
                 let item = {
                     id: drive.mountpoints[0].path,

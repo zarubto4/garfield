@@ -212,7 +212,7 @@ export class Becki extends EventEmitter {
                 Logger.info('Access token:', webSocketToken.websocket_token);
                 this.websocketErrorShown = false;
                 this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/becki/${webSocketToken.websocket_token}`);
-                this.webSocket.addEventListener('close', this.reconnectWebSocketAfterTimeout);
+                this.webSocket.addEventListener('close', this.onClose);
                 let opened = Rx.Observable
                     .fromEvent<void>(this.webSocket, 'open');
                 let channelReceived = Rx.Observable
@@ -231,6 +231,7 @@ export class Becki extends EventEmitter {
 
                 opened.subscribe(anything => {
                     this.requestBeckiSubscribe();
+                    this.setKeepAlive();
                     this.emit('open');
                 });
                 opened
@@ -271,6 +272,11 @@ export class Becki extends EventEmitter {
                     this.websocketErrorShown = true;
                     this.webSocketErrorOccurred.next(error);
                 }
+
+                if (this.keepAlive) {
+                    clearInterval(this.keepAlive);
+                }
+
                 Logger.error('Reconecting - error occured:', error.message);
                 this.reconnectWebSocketAfterTimeout();
             });
@@ -292,6 +298,11 @@ export class Becki extends EventEmitter {
 
     public disconnectWebSocket(): void {
         Logger.info('disconnectWebSocket: disconnecting');
+
+        if (this.keepAlive) {
+            clearInterval(this.keepAlive);
+        }
+
         if (this.webSocketReconnectTimeout) {
             Logger.info('disconnectWebSocket: clear reconnect timeout');
             clearTimeout(this.webSocketReconnectTimeout);
@@ -306,11 +317,27 @@ export class Becki extends EventEmitter {
         this.webSocket = null;
     }
 
+    protected onClose = () => {
+        if (this.keepAlive) {
+            clearInterval(this.keepAlive);
+        }
+
+        this.emit('close');
+        this.reconnectWebSocketAfterTimeout();
+    }
+
     // define function as property is needed to can set it as event listener (class methods is called with wrong this)
     protected reconnectWebSocketAfterTimeout = () => {
+        
         clearTimeout(this.webSocketReconnectTimeout);
         this.webSocketReconnectTimeout = setTimeout(() => {
             this.connectWebSocket();
+        }, 5000);
+    }
+
+    private setKeepAlive(): void {
+        this.keepAlive = setInterval(() => {
+            this.sendWebSocketMessage(new IWebSocketMessage('keepalive'));
         }, 5000);
     }
 
@@ -368,5 +395,7 @@ export class Becki extends EventEmitter {
     private webSocketReconnectTimeout: any = null;
 
     private token = null;
+
+    private keepAlive = null;
     // protected abstract requestRestPath<T>(method: string, path: string, body: Object, success: number[]): Promise<T>;
 }

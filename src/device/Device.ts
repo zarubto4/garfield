@@ -1,4 +1,4 @@
-import { Serial } from '../communication/Serial';
+import { Serial, SerialMessage } from '../communication/Serial';
 import * as fs from 'fs';
 import { Logger } from 'logger';
 import { Configurator } from './Configurator';
@@ -20,18 +20,8 @@ export class Device {
         return this.path;
     }
 
-    public message(message: string): Promise<string> {
-        Logger.info('Sendig message \'' + message + '\' with response');
-        return new Promise((resolve, reject) => {
-            this.serial.sendWithResponse(message, (res: string, err: string) => {
-                if (err) {
-                    reject(err);
-                } else if (res) {
-                    Logger.info('Message resolved with: ' + res);
-                    resolve(res);
-                }
-            });
-        });
+    public send(message: SerialMessage): Promise<string> {
+        return this.serial.send(message);
     }
 
     public disconnect(callback): void {
@@ -52,7 +42,7 @@ export class Device {
 
     public configure(config: any, callback: (err?) => void): void {
         setTimeout(() => {
-            this.message('TK3G:ioda_bootloader').then((response) => {
+            this.serial.send(new SerialMessage('TK3G', 'ioda_bootloader')).then((response) => {
                 if (response === 'ok') {
                     setTimeout(() => {
                         let configurator: Configurator = new Configurator(config, this.serial);
@@ -89,7 +79,6 @@ export class Device {
     private writeDataToFlash(filename: string, data: Buffer, callback: (err) => void) {
         fs.writeFile(this.path + '/' + filename, data, callback);
     }
-
 
     private serial: Serial;
     private path: string;

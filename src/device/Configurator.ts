@@ -1,143 +1,110 @@
-import { Serial } from '../communication/Serial';
+import { Serial, SerialMessage } from '../communication/Serial';
 import { Logger } from 'logger';
 import { Queue } from '../utils/Queue';
 
 class Property {
 
-    public key: string;
-    public value: string;
-
     constructor(key: string, value: any) {
         this.key = key;
         this.value = value.toString();
+        this.message = new SerialMessage('IODA', this.key, this.value);
     }
+
+    public getMessage(): SerialMessage {
+        return this.message;
+    }
+
+    public getValue(): string {
+        return this.value;
+    }
+
+    private key: string;
+    private value: string;
+    private message: SerialMessage;
 }
 
 export class Configurator {
 
-    public connection: Serial;
+    public serial: Serial;
 
-    constructor(config: any, serialConnection: Serial) {
-        this.connection = serialConnection;
+    constructor(config: any, serial: Serial) {
+        this.serial = serial;
         this.config = config;
     }
 
-    public connect(connectionCallback, messageCallback) {
-
-        this.connection = new Serial();
-        this.connection.once('connected', () => {
-            Logger.info('Configurator aquired a connection');
-        });
-
-        this.messageCallback = messageCallback;
-        this.connection
-            .on('message', this.messageCallback)
-            .once('connected', connectionCallback)
-            .once('connection_error', connectionCallback);
-
-        this.connection.connect();
-    }
-
     public beginConfiguration(callback: (configurationError?: string) => void) {
-        if (this.connection) {
+        if (!this.serial) {
 
-            Logger.info(JSON.stringify(this.config));
+            callback('Serial communication is not opened');
+            return;
+        }
 
-            // Set defaults first
-            this.connection.sendWithResponse('IODA:defaults', (res: string, err?: string) => {
-                if (!err && res === 'ok') {
-                    this.queue = new Queue<Property>();
+        Logger.info('Configurator::beginConfiguration - config: ' + JSON.stringify(this.config));
 
-                    for (const key in this.config) {
-                        if (this.config[key] !== null && this.config[key] !== undefined) {
-                            this.queue.push(new Property(key, this.config[key]));
-                        }
+        // Set defaults first
+        this.serial.send(new SerialMessage('IODA', 'defaults', null, 20000)).then((response) => {
+            if (response === 'ok') {
+                this.queue = new Queue<Property>();
+
+                for (const key in this.config) {
+                    if (this.config[key] !== null && this.config[key] !== undefined) {
+                        this.queue.push(new Property(key, this.config[key]));
                     }
-
-                    this.queue.push(new Property('configured', 1));
-
-                    this.currentPropertyTry = 3;
-                    this.configurationCallback = callback;
-                    this.configureMessageHandler = this.onConfigureMessage.bind(this);
-                    this.connection.on('message', this.configureMessageHandler);
-                    this.configure();
-                } else {
-                    callback('Unable to set defaults before configuration - canceled');
                 }
-            });
-        }
+
+                this.queue.push(new Property('configured', 1));
+                this.configurationCallback = callback;
+                this.configure();
+
+            } else {
+                callback('Failed to set defaults before configuration - canceled');
+            }
+        }, (error) => {
+            callback('Unable to set defaults before configuration - canceled, ' + error);
+        });
     }
 
-    public send(message: string) {
-        if (this.connection) {
-            this.connection.send(message);
-        }
-    }
-
-    public disconnect(callback) {
-        if (this.connection) {
-            this.connection.disconnect(callback);
-        }
-    }
-
-    public ping() {
-        if (this.connection) {
-            this.connection.ping();
-        }
+    private send(property: Property): Promise<string> {
+        return this.serial.send(property.getMessage());
     }
 
     private configure() {
         let property: Property = this.queue.getTop();
-        if (this.currentPropertyTry === 0) {
-            this.endConfiguration('Failed to set property \'' + property + '\'');
-            return;
-        }
-        this.send('IODA:' + property.key + '=' + property.value);
-        this.currentPropertyTry--;
-        this.currentPropertyTimeout = setTimeout(() => {
-            Logger.info('Response timeout - number of remaining tries = ' + this.currentPropertyTry);
+        this.send(property).then((response: string) => {
+            if (response !== property.getValue()) {
+                this.send(property).then((res: string) => {
+                    if (res === property.getValue()) {
+                        this.continue();
+                    } else {
+                        this.endConfiguration('Failed to set property \'' + property + '\'');
+                    }
+                }, (err) => {
+                    this.endConfiguration('Unable to set protperty \'' + property + '\', ' + err);
+                });
+            } else {
+                this.continue();
+            }
+        }, (error) => {
+            this.endConfiguration('Unable to set protperty \'' + property + '\', ' + error);
+        });
+    }
+
+    private continue(): void {
+        this.queue.pop();
+        if (this.queue.isEmpty()) {
+            this.endConfiguration();
+        } else {
             this.configure();
-        }, 10000);
+        }
     }
 
     private endConfiguration(error?: string): void {
-        this.connection.removeListener('message', this.configureMessageHandler);
-        this.connection.flush();
-        this.configureMessageHandler = null;
+        this.serial.flush();
         this.configurationCallback(error);
     }
 
-    private onConfigureMessage(message: string) {
-        clearTimeout(this.currentPropertyTimeout);
-
-        Logger.info('Configurator got response on configure = ' + message);
-
-        message = message.replace('IODA:', ''); // Remove prefix
-
-        let type: string = Serial.getMessageType(message);
-        let value: string = Serial.getMessageValue(message);
-
-        let property: Property = this.queue.getTop();
-
-        Logger.info('Current property = ' + type + ', value = ' + value);
-
-        if (property.value === value) { // If the current property was changed successfully
-            this.queue.pop(); // Shifts queue, so the first element is out
-            this.currentPropertyTry = 3;
-            if (this.queue.isEmpty()) {
-                this.endConfiguration();
-                return;
-            }
-        }
-        this.configure();
-    }
-
     private queue: Queue<Property>;
-    private currentPropertyTimeout: any;
-    private currentPropertyTry: number;
-    private messageCallback: (message: string) => void;
     private configurationCallback: (configurationError?: string) => void;
-    private configureMessageHandler: (message: string) => void;
 
     private config: any = {
         normal_mqtt_hostname: 'dummy_host',

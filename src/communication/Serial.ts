@@ -1,6 +1,90 @@
 import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
 import * as SerialPort from 'serialport';
 import { EventEmitter } from 'events';
+import * as Promise from 'promise';
+
+export class SerialMessage extends EventEmitter {
+
+    constructor(target: ('TK3G'|'IODA'), type: string, value?: string, timeout?: number, retry?: number) {
+        super();
+
+        this.target = target;
+        this.type = type;
+
+        if (value) {
+            this.value = value;
+        }
+
+        if (timeout) {
+            this.timeout = timeout;
+        }
+
+        if (retry) {
+            this.retry = retry;
+        }
+    }
+
+    public resolve(response: string): void {
+        clearTimeout(this.timeoutHandler);
+        if (this.resolveCallback) {
+            this.resolveCallback(response);
+        }
+    }
+
+    public reject(err?: string): void {
+        clearTimeout(this.timeoutHandler);
+        if (this.rejectCallback) {
+            this.rejectCallback(err);
+        }
+    }
+
+    public getTarget(): string {
+        return this.target;
+    }
+
+    public getType(): string {
+        return this.type;
+    }
+
+    public getValue(): string {
+        return this.value;
+    }
+
+    public getMessage(): string {
+        let message: string = this.target + ':' + this.type;
+
+        if (this.value) {
+            message += '=' + this.value;
+        }
+        return message;
+    }
+
+    public setCallbacks(resolve: (response: string) => void, reject: (err?: string) => void) {
+        this.resolveCallback = resolve;
+        this.rejectCallback = reject;
+    }
+
+    public startTimeout() {
+        this.retry--;
+        this.timeoutHandler = setTimeout(() => {
+            if (this.retry > 0) {
+                this.emit('repeat', this);
+            } else {
+                this.reject('timeout');
+                this.emit('timeout', this);
+            }
+        }, this.timeout);
+    }
+
+    private resolveCallback: (response: string) => void;
+    private rejectCallback: (err?: string) => void;
+    private timeoutHandler: any;
+    private target: ('TK3G'|'IODA');
+    private type: string;
+    private value: string;
+    private timeout: number = 10000;
+    private retry: number = 3;
+}
 
 export class Serial extends EventEmitter {
 
@@ -59,7 +143,7 @@ export class Serial extends EventEmitter {
                         setTimeout(() => {
                             Logger.info('Sending ping to ' + temp_connection.path);
                             temp_connection.flush();
-                            temp_connection.write('TK3G:ping\r\n');
+                            temp_connection.write('TK3G:ping#' + Serial.crc('TK3G:ping') + '\r\n');
                         }, 1500);
                     }
                 });
@@ -98,20 +182,7 @@ export class Serial extends EventEmitter {
                         temp_connection.removeAllListeners('data'); // removing temporary listener
                         this.connection = temp_connection;
                         this.parser = this.connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' }));
-                        this.parser.on('data', (message) => {
-                            if (!message.startsWith('*')) { // Filetring out comments
-                                if (!Serial.checkCrc(message.trim())) { // Checking CRC checksum
-                                    this.emit('error', 'Data broken - CRC checksum is invalid');
-                                } else {
-                                    message = message.substring(0, message.lastIndexOf('#')); // Removes the CRC checksum
-                                    if (Serial.getMessageType(message) === 'btn') {
-                                        this.emit('button');
-                                    } else {
-                                        this.emit('message', message);
-                                    }
-                                }
-                            }
-                        });
+                        this.parser.on('data', this.messageResolver);
 
                         this.once('connected', () => {
                             this.blink(5, 150);
@@ -136,50 +207,26 @@ export class Serial extends EventEmitter {
         });
     }
 
-    public send(message: string) {
-        Logger.info('Sending message = ' + message);
-        if (this.connection) {
-            setTimeout(() => { // Little delay between messages, so the device better consumes it
-                this.connection.write(message + '#' + Serial.crc(message) + '\r\n');
-            }, 25);
-        }
+    public send(message: SerialMessage): Promise<string> {
+        return new Promise((resolve, reject) => {
+            message.setCallbacks(resolve, reject);
+            message.startTimeout();
+            message.on('repeat', this.onRepeat.bind(this)).on('timeout', this.onTimeout.bind(this));
+            this.messageBuffer.push(message);
+            this.write(message.getMessage());
+        });
     }
 
-    public sendWithResponse(message: string, callback: (response: string, err?: string) => void) {
-
-        let timeout;
-
-        let messageListener = (msg) => {
-            if (timeout) {
-                clearTimeout(timeout);
-            }
-            if (Serial.getMessageType(message) === Serial.getMessageType(msg)) {
-                callback(Serial.getMessageValue(msg));
-            } else {
-                callback(null, 'Error getting the response.');
-            }
-        };
-
-        timeout = setTimeout(() => {
-            this.removeListener('message', messageListener);
-            callback(null, 'Timeout for response.');
-        }, 10000);
-
-        this.once('message', messageListener);
-        this.send(message);
-    }
-
-    public ping() {
-        Logger.info('Sending ping');
-        this.send('ping');
+    public ping(): Promise<string> {
+        Logger.info('Serial::ping - sending ping');
+        return this.send(new SerialMessage('TK3G', 'ping', null, 2000, 3));
     }
 
     public blink(count: number, delay: number) {
-        Logger.info('Count is ' + count);
         if (count > 0) {
-            this.send('TK3G:leds=111111');
+            this.write('TK3G:leds=111111');
             setTimeout(() => {
-                this.send('TK3G:leds=000000');
+                this.write('TK3G:leds=000000');
                 setTimeout(() => {
                     this.blink(--count, delay);
                 }, delay);
@@ -187,15 +234,15 @@ export class Serial extends EventEmitter {
         }
     }
 
-    public ledHigh(index: number) {
-        this.ledChange('1', index);
+    public ledHigh(index: number): Promise<string> {
+        return this.ledChange('1', index);
     }
 
-    public ledLow(index: number) {
-        this.ledChange('0', index);
+    public ledLow(index: number): Promise<string> {
+        return this.ledChange('0', index);
     }
 
-    public ledChange(val: string, index: number) {
+    public ledChange(val: string, index: number): Promise<string> {
         if (index === 0) {
             this.leds = val + this.leds.substring(1);
         }
@@ -209,11 +256,11 @@ export class Serial extends EventEmitter {
             this.leds = this.leds.substring(0, 5) + val;
         }
 
-        this.send('TK3G:leds=' + this.leds);
+        return this.send(new SerialMessage('TK3G', 'leds', this.leds));
     }
 
     public flush() {
-        Logger.info('Flush');
+        Logger.info('Serial::flush - flushing');
         this.connection.flush();
     }
 
@@ -243,27 +290,99 @@ export class Serial extends EventEmitter {
     private static checkCrc(message: string): boolean {
         let crc: string = message.substring(message.lastIndexOf('#') + 1);
         message = message.substring(0, message.lastIndexOf('#'));
-        Logger.info('Checking crc = ' + crc + ' for message = ' + message);
+        Logger.info('Serial::checkCrc - crc: ' + crc + ', message: ' + message);
 
         if (crc === Serial.crc(message)) {
-            Logger.info('Checking crc = valid');
+            Logger.info('Serial::checkCrc - valid');
             return true;
         }
-        Logger.info('Checking crc = invalid');
+        Logger.info('Serial::checkCrc - invalid');
         return false;
+    }
+
+    private write(message: string): void {
+        Logger.info('Serial::write - sending message: ' + message);
+        if (this.connection) {
+            setTimeout(() => { // Little delay between messages, so the device better consumes it
+                this.connection.write(message + '#' + Serial.crc(message) + '\r\n');
+            }, 25);
+        }
     }
 
     private connectionCleanUp(connections: SerialPort[]) {
         connections.forEach((conn) => { // closing unnecesary connections
             if (!this.connection || conn.path !== this.connection.path) {
                 conn.close(() => {
-                    Logger.info('Disconnected wrong device on ' + conn.path);
+                    Logger.info('Serial::connectionCleanUp - disconnected wrong device on ' + conn.path);
                     connections.splice(conn);
                 });
             }
         });
     }
 
+    private onRepeat(message: SerialMessage) {
+        message.startTimeout();
+        this.write(message.getMessage());
+    }
+
+    private onTimeout(message: SerialMessage) {
+        let index: number = this.messageBuffer.findIndex((msg: SerialMessage) => {
+            return message.getTarget() === msg.getTarget() && message.getType() === msg.getType() && message.getValue() === msg.getValue();
+        });
+        if (index > -1) {
+            this.messageBuffer.splice(index, 1);
+        }
+    }
+
+    private messageResolver = (message: string) => {
+
+        Logger.info('Serial::messageResolver - received new message: ' + message);
+
+        if (!message.startsWith('*')) { // Filtering out comments
+            if (!Serial.checkCrc(message.trim())) { // Checking CRC checksum
+                this.emit('error', 'Data broken - CRC checksum is invalid');
+            } else {
+                message = message.substring(0, message.lastIndexOf('#')); // Removes the CRC checksum
+
+                let sender: string = Serial.getMessageSender(message);
+                let type: string = Serial.getMessageType(message);
+                let value: string = Serial.getMessageValue(message);
+
+                if (type === 'btn') {
+                    this.emit('button', value);
+                } else {
+                    let request: SerialMessage = this.messageBuffer.find((msg: SerialMessage) => {
+                        return msg.getTarget() === sender && msg.getType() === type;
+                    });
+
+                    Logger.info('Serial::messageResolver - buffer length: ' + this.messageBuffer.length);
+
+                    if (request) {
+                        Logger.info('Serial::messageResolver - found request message in buffer');
+
+                        if (value) {
+                            request.resolve(value);
+                        } else {
+                            request.reject('Response was empty');
+                        }
+
+                        let index: number = this.messageBuffer.findIndex((msg: SerialMessage) => {
+                            return sender === msg.getTarget() && type === msg.getType();
+                        });
+
+                        if (index > -1) {
+                            this.messageBuffer.splice(index, 1);
+                        }
+                    } else {
+                        Logger.info('Serial::messageResolver - request message not found emitting');
+                        this.emit('message', message);
+                    }
+                }
+            }
+        }
+    }
+
+    private messageBuffer: SerialMessage[] = [];
     private connection: SerialPort = null;
     private parser: SerialPort.parsers.Readline;
     private leds: string = '000000';
