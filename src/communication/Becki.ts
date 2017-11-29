@@ -301,15 +301,17 @@ export class Becki extends EventEmitter {
 
         if (this.keepAlive) {
             clearInterval(this.keepAlive);
+            this.keepAlive = null;
         }
 
         if (this.webSocketReconnectTimeout) {
             Logger.info('Becki::disconnectWebSocket - clear reconnect timeout');
             clearTimeout(this.webSocketReconnectTimeout);
+            this.webSocketReconnectTimeout = null;
         }
         if (this.webSocket) {
             Logger.info('Becki::disconnectWebSocket - removing event listener and closing');
-            this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
+            this.webSocket.removeEventListener('close', this.onClose);
             this.webSocket.close();
         }
 
@@ -328,7 +330,6 @@ export class Becki extends EventEmitter {
 
     // define function as property is needed to can set it as event listener (class methods is called with wrong this)
     protected reconnectWebSocketAfterTimeout = () => {
-        
         clearTimeout(this.webSocketReconnectTimeout);
         this.webSocketReconnectTimeout = setTimeout(() => {
             this.connectWebSocket();
