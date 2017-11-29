@@ -21,10 +21,10 @@ let icon;
 
 try {
 
-// Do platform specific tasks
+    // Do platform specific tasks
     switch (platform) {
         case 'win32': {
-            Logger.info('Running on Windows platform');
+            Logger.info('main - Running on Windows platform');
             if (handleSquirrelEvent()) {
                 app.quit();
             }
@@ -35,12 +35,12 @@ try {
             break;
         }
         case 'darwin': {
-            Logger.info('Running on Mac platform');
+            Logger.info('main - Running on Mac platform');
             icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
             break;
         }
         case 'linux': {
-            Logger.info('Running on Linux platform');
+            Logger.info('main - Running on Linux platform');
             icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
             break;
         }

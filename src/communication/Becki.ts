@@ -203,13 +203,13 @@ export class Becki extends EventEmitter {
     }
 
     public connectWebSocket(): void {
-        Logger.info('connectWebSocket()');
+        Logger.info('Becki::connectWebSocket - connecting');
 
         this.disconnectWebSocket();
 
         this.websocketGetAccessToken()
             .then((webSocketToken: IWebSocketToken) => {
-                Logger.info('Access token:', webSocketToken.websocket_token);
+                Logger.info('Becki::connectWebSocket - access token:', webSocketToken.websocket_token);
                 this.websocketErrorShown = false;
                 this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/becki/${webSocketToken.websocket_token}`);
                 this.webSocket.addEventListener('close', this.onClose);
@@ -277,13 +277,13 @@ export class Becki extends EventEmitter {
                     clearInterval(this.keepAlive);
                 }
 
-                Logger.error('Reconecting - error occured:', error.message);
+                Logger.error('Becki::connectWebSocket - reconecting, error occured:', error.message);
                 this.reconnectWebSocketAfterTimeout();
             });
     }
 
     public requestBeckiSubscribe(): void {
-        Logger.info('Requesting subscription');
+        Logger.info('Becki::requestBeckiSubscribe - requesting subscription');
         let message = new IWebSocketMessage('subscribe_garfield');
         if (!this.findEnqueuedWebSocketMessage(message, 'message_channel', 'message_type')) {
             this.sendWebSocketMessage(message);
@@ -291,29 +291,29 @@ export class Becki extends EventEmitter {
     }
 
     public sendWebSocketMessage(message: IWebSocketMessage): void {
-        Logger.info('WS message: ' + JSON.stringify(message));
+        Logger.info('Becki::sendWebSocketMessage - sending message: ' + JSON.stringify(message));
         this.webSocketMessageQueue.push(message);
         this.sendWebSocketMessageQueue();
     }
 
     public disconnectWebSocket(): void {
-        Logger.info('disconnectWebSocket: disconnecting');
+        Logger.info('Becki::disconnectWebSocket - disconnecting');
 
         if (this.keepAlive) {
             clearInterval(this.keepAlive);
         }
 
         if (this.webSocketReconnectTimeout) {
-            Logger.info('disconnectWebSocket: clear reconnect timeout');
+            Logger.info('Becki::disconnectWebSocket - clear reconnect timeout');
             clearTimeout(this.webSocketReconnectTimeout);
         }
         if (this.webSocket) {
-            Logger.info('disconnectWebSocket: removing event listener and closing');
+            Logger.info('Becki::disconnectWebSocket - removing event listener and closing');
             this.webSocket.removeEventListener('close', this.reconnectWebSocketAfterTimeout);
             this.webSocket.close();
         }
 
-        Logger.info('disconnectWebSocket: connection closed');
+        Logger.info('Becki::disconnectWebSocket - connection closed');
         this.webSocket = null;
     }
 
@@ -370,7 +370,7 @@ export class Becki extends EventEmitter {
     }
 
     private websocketGetAccessToken(): Promise<IWebSocketToken> {
-        Logger.info('token: ', this.authToken);
+        Logger.info('Becki::websocketGetAccessToken - token: ', this.authToken);
         let options = {
             method: 'GET',
             uri: (ConfigManager.config.get<boolean>('tyrionSecured') ? 'https://' : 'http://') +

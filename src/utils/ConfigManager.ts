@@ -121,7 +121,7 @@ export class ConfigManager {
 
         let path = resolve(__dirname + '/../..', configPath);
 
-        Logger.log('Loading config file:', path);
+        Logger.info('ConfigManager::constructor - loading config file:', path);
 
         let config = readFileSync(path, 'utf8');
 

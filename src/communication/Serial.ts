@@ -116,7 +116,7 @@ export class Serial extends EventEmitter {
 
         SerialPort.list((listError, ports) => { // List all available ports
 
-            Logger.info('Connecting - Getting all devices');
+            Logger.info('Serial::connect - getting all devices');
 
             if (listError) {
                 Logger.error(listError);
@@ -131,19 +131,19 @@ export class Serial extends EventEmitter {
 
             ports.forEach((port: any, index: number) => { // Try every port until Tester is found
 
-                Logger.info('Connecting - Trying port = ' + JSON.stringify(port));
+                Logger.info('Serial::connect - Trying port = ' + JSON.stringify(port));
 
                 let temp_connection: SerialPort = new SerialPort(port.comName, {baudRate: 115200, rtscts: true}, (connectionError: any) => {
                     if (connectionError) {
-                        Logger.error('Connection error: ' + connectionError.toString());
+                        Logger.error('Serial::connect - unable to open connection: ' + connectionError.toString());
                         // this.emit('connection_error', connectionError.message);
                     } else {
-                        Logger.info('Connected to ' + temp_connection.path);
+                        Logger.info('Serial::connect - port ' + temp_connection.path + ' opened');
                         opened_connections.push(temp_connection); // Keeping reference to current connection
                         setTimeout(() => {
-                            Logger.info('Sending ping to ' + temp_connection.path);
+                            Logger.info('Serial::connect - ping port ' + temp_connection.path);
                             temp_connection.flush();
-                            temp_connection.write('TK3G:ping#' + Serial.crc('TK3G:ping') + '\r\n');
+                            temp_connection.write(Serial.addCrc('TK3G:ping') + '\r\n');
                         }, 1500);
                     }
                 });
@@ -163,10 +163,10 @@ export class Serial extends EventEmitter {
 
                     data = data.trim();
 
-                    Logger.info('Received data = ' + data + ' from ' + temp_connection.path);
+                    Logger.info('Serial::connect - received data = ' + data + ' from ' + temp_connection.path);
 
                     if (!Serial.checkCrc(data)) {
-                        Logger.info('Checksum is invalid');
+                        Logger.info('Serial::connect - checksum is invalid');
                         return;
                     }
 
@@ -178,7 +178,7 @@ export class Serial extends EventEmitter {
                             clearTimeout(lastConnectionTimout);
                         }
 
-                        Logger.info('Found Yoda - keeping connection on ' + temp_connection.path);
+                        Logger.info('Serial::connect - found tester on ' + temp_connection.path);
                         temp_connection.removeAllListeners('data'); // removing temporary listener
                         this.connection = temp_connection;
                         this.parser = this.connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' }));
@@ -198,10 +198,10 @@ export class Serial extends EventEmitter {
 
     public disconnect(callback) {
 
-        Logger.info('Disconnecting serial port');
+        Logger.info('Serial::disconnect - disconnecting serial port');
 
         this.connection.close(() => {
-            Logger.info('Serial is closed');
+            Logger.info('Serial::disconnect - connection closed');
             this.connection = null;
             callback();
         });
@@ -287,6 +287,10 @@ export class Serial extends EventEmitter {
         return crcStr.toUpperCase();
     }
 
+    private static addCrc(message: string): string {
+        return message + '#' + Serial.crc(message);
+    }
+
     private static checkCrc(message: string): boolean {
         let crc: string = message.substring(message.lastIndexOf('#') + 1);
         message = message.substring(0, message.lastIndexOf('#'));
@@ -304,7 +308,7 @@ export class Serial extends EventEmitter {
         Logger.info('Serial::write - sending message: ' + message);
         if (this.connection) {
             setTimeout(() => { // Little delay between messages, so the device better consumes it
-                this.connection.write(message + '#' + Serial.crc(message) + '\r\n');
+                this.connection.write(Serial.addCrc(message) + '\r\n');
             }, 25);
         }
     }
@@ -313,7 +317,7 @@ export class Serial extends EventEmitter {
         connections.forEach((conn) => { // closing unnecesary connections
             if (!this.connection || conn.path !== this.connection.path) {
                 conn.close(() => {
-                    Logger.info('Serial::connectionCleanUp - disconnected wrong device on ' + conn.path);
+                    Logger.info('Serial::connectionCleanUp - disconnected wrong device on', conn.path);
                     connections.splice(conn);
                 });
             }
@@ -336,7 +340,7 @@ export class Serial extends EventEmitter {
 
     private messageResolver = (message: string) => {
 
-        Logger.info('Serial::messageResolver - received new message: ' + message);
+        Logger.info('Serial::messageResolver - received new message:', message);
 
         if (!message.startsWith('*')) { // Filtering out comments
             if (!Serial.checkCrc(message.trim())) { // Checking CRC checksum
@@ -355,7 +359,7 @@ export class Serial extends EventEmitter {
                         return msg.getTarget() === sender && msg.getType() === type;
                     });
 
-                    Logger.info('Serial::messageResolver - buffer length: ' + this.messageBuffer.length);
+                    Logger.info('Serial::messageResolver - buffer length:', this.messageBuffer.length);
 
                     if (request) {
                         Logger.info('Serial::messageResolver - found request message in buffer');

@@ -8,8 +8,7 @@ enum TestType {
     MeasureHigh = 'Measure Pins Up',
     PinsLow = 'Pins Down',
     MeasureLow = 'Measure Pins Down',
-    MeasurePower = 'Measure Power',
-    Finish = 'Finish'
+    MeasurePower = 'Measure Power'
 }
 
 export class TestResult {
