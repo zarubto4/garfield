@@ -4,6 +4,7 @@ import { Logger } from 'logger';
 import { Configurator } from './Configurator';
 import { Tester } from './Tester';
 import * as Promise from 'promise';
+import * as path from 'path';
 
 export class Device {
 
@@ -63,23 +64,85 @@ export class Device {
     }
 
     public writeBootloader(bootloader: Buffer, callback: (err) => void) {
+        Logger.info('Device::writeBootloader');
         this.writeDataToFlash('BOOTLOAD.TXT', Buffer.from(''), (err) => {
             if (err) {
+                Logger.error('Device::writeBootloader::ERROR:: ', err.toString());
                 callback(err);
             } else {
+                Logger.info('Device::writeBootloader:: CallBack Done, Write Bootloader File main.bin');
                 this.writeDataToFlash('main.bin', bootloader, callback);
             }
         });
     }
 
     public writeFirmware(firmware: Buffer, callback: (err) => void) {
+        Logger.info('Device::writeFirmware');
         this.writeDataToFlash('main.bin', firmware, callback);
     }
 
+
     private writeDataToFlash(filename: string, data: Buffer, callback: (err) => void) {
-        fs.writeFile(this.path + '/' + filename, data, callback);
+
+        let dir: string = path.join(this.path, filename);
+        Logger.info('Device::writeDataToFlash::Data Path:: ', dir);
+
+        try {
+            fs.writeFileSync(dir, data);
+        }catch (excx) {
+            Logger.error('Shit::  ', excx.toString());
+            fs.writeFileSync(dir, data);
+        }
+
+        if (filename.indexOf('BOOTLOAD.TXT') !== -1) {
+            setTimeout(function () {
+                return callback(null);
+            }, 1000);
+        }
+
+        if (filename.indexOf('main.bin') !== -1) {
+            setTimeout(function () {
+                return callback(null);
+            }, 15000);
+        }
+
+
+        // this.check(dir, callback);
     }
 
+    private check(dir: string, callback: (err) => void) {
+
+        let device: any = this;
+        try {
+
+            if (fs.existsSync(dir)) {
+                Logger.warn('Cycle', this.cycles++, ' Existuje a nehodilo to chybu ', dir);
+
+                let stats = fs.lstatSync(dir);
+
+                if (stats.isFile) {
+                    Logger.warn('Cycle', this.cycles++, 'Po uložení --------- Device::writeDataToFlash:: is file!!!!! A to přesně ', dir);
+                    return callback(null);
+                }else {
+                    setTimeout(function () {
+                        device.check(dir, callback);
+                    }, 2500);
+                }
+            } else {
+                Logger.warn('Cycle', this.cycles++, 'Neexistuje a nehodilo to chybu', dir);
+                setTimeout(function () {
+                    device.check(dir, callback);
+                }, 2500);
+            }
+        }catch (err) {
+            Logger.error('Cycle', this.cycles++, 'Pičovina:: nad kontrolou:: ', dir , 'ERROR:: ', err.toString());
+            setTimeout( function() {
+                device.check(dir, callback);
+            } , 2500);
+        }
+    }
+
+    private cycles: number = 0;
     private serial: Serial;
     private path: string;
 }

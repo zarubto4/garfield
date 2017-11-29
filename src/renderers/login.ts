@@ -22,7 +22,7 @@ form.addEventListener('submit', function(event) {
 
     mail = (<HTMLInputElement>document.getElementById('mail')).value;
     password = (<HTMLInputElement>document.getElementById('password')).value;
-    remember = (<HTMLInputElement>document.getElementById('remember')).checked;
+    remember = true;
 
     if (mail || password) {
 

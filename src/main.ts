@@ -12,7 +12,8 @@ import * as fs from 'fs';
 
 const platform = process.platform;
 let icon;
-
+let iconPath: string = null;
+let eNotify = null;
 /**************************************
  *                                    *
  * Enviroment stuff                   *
@@ -36,7 +37,8 @@ try {
         }
         case 'darwin': {
             Logger.info('main - Running on Mac platform');
-            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
+            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/iconset/icon_16x16@2x.png'));
+            iconPath = path.join(__dirname, '../assets/iconset/icon_512x512.png');
             break;
         }
         case 'linux': {
@@ -64,6 +66,7 @@ try {
         .on('websocket_open', notification)
         .on('websocket_closed', notification)
         .on('tester_connected', () => {
+            Logger.info('EVENT: tester_connectedtester_connectedtester_connectedtester_connectedtester_connectedtester_connectedtester_connectedtester_connected')
             notification('TestKit connected');
             renderTrayContextMenu();
         })
@@ -79,6 +82,9 @@ try {
         });
 
     app.on('ready', checkForUpdates);
+
+    // Hide icon on Mac
+    app.dock.hide();
 
     app.on('window-all-closed', (event) => {
         event.preventDefault(); // Default is app quitting
@@ -103,7 +109,8 @@ try {
 
 
 
-/**************************************
+
+ /**************************************
  *                                    *
  * Support functions                  *
  *                                    *
@@ -118,7 +125,7 @@ try {
             Logger.info('Running in PROD mode');
             Logger.info('Check for update');
             start();
-/*
+        /*
         autoUpdater
             .once('update-not-available', () => {
                 start();
@@ -140,7 +147,8 @@ try {
                 autoUpdater.quitAndInstall();
             });
 
-             autoUpdater.checkForUpdates();*/
+             autoUpdater.checkForUpdates();
+             */
         }
     }
 
@@ -152,6 +160,13 @@ try {
         tray.setToolTip('Garfield App');
         renderTrayContextMenu();
 
+        // Notify Notification Settings
+        eNotify = require('electron-notify');
+        eNotify.setConfig({
+            appIcon: iconPath,
+            displayTime: 6000
+        });
+
         notification('Garfield has started.');
 
         fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
@@ -159,6 +174,18 @@ try {
                 garfield.init(data);
             }
         });
+
+        // Test
+        /*
+        eNotify.notify({ title: 'Notification title', text: 'Some text' });
+        eNotify.notify({
+            title: 'Notification title',
+            text: 'Some text', url: 'http://wikipedia.org',
+            image: path.join(__dirname, '../assets/byzance_logo_grey.png'),
+            sound: path.join(__dirname, 'sound.wav')
+        });
+        */
+
     }
 
     function login(token: string, remember: boolean): void {
@@ -220,7 +247,7 @@ try {
 
         switch (menuItem.id) {
             case 'login': {
-                window = new BrowserWindow({show: false, height: 170, width: 450, icon: icon});
+                window = new BrowserWindow({show: false, height: 400, width: 450, icon: icon, resizable: false});
                 window.loadURL(url.format({
                     pathname: path.join(__dirname, '../views/login.html'),
                     protocol: 'file:',
@@ -284,6 +311,7 @@ try {
     }
 
     function renderTrayContextMenu(): void {
+        Logger.info('main::renderTrayContextMenu');
         drivelist.list((error, drives) => {
 
             if (error) {
@@ -307,6 +335,11 @@ try {
                 };
 
                 submenu.push(item);
+
+                if ( drive.mountpoints[0].path.indexOf('BYZG3') !== -1) {
+                    Logger.info('main::renderTrayContextMenu - shortcuts activated devixe path:: ', drive.mountpoints[0].path);
+                    garfield.connectTester(drive.mountpoints[0].path);
+                }
             });
 
             let template: any[] = [];

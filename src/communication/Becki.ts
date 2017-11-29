@@ -291,7 +291,7 @@ export class Becki extends EventEmitter {
     }
 
     public sendWebSocketMessage(message: IWebSocketMessage): void {
-        Logger.info('Becki::sendWebSocketMessage - sending message: ' + JSON.stringify(message));
+         // Logger.info('Becki::sendWebSocketMessage - sending message: ' + JSON.stringify(message));
         this.webSocketMessageQueue.push(message);
         this.sendWebSocketMessageQueue();
     }

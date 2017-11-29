@@ -1,5 +1,5 @@
 {
-    "tyrionHost": "192.168.65.31:9000",
+    "tyrionHost": "localhost:9000",
     "tyrionSecured": false,
     "tyrionReconnectTimeout": 10000,
     "serial": {

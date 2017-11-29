@@ -296,7 +296,7 @@ export class Garfield extends EventEmitter {
                                 Logger.info('Garfield::message - message_type: device_binary, beggining bootloader upload');
                                 this.device.writeBootloader(body, (err) => {
                                     if (err) {
-                                        Logger.error(err);
+                                        Logger.error(err.toString());
                                         respond(new WsMessageError(msg.message_type, err.toString()));
                                     } else {
                                         Logger.info('Garfield::message - message_type: device_binary, bootloader upload completed');
@@ -344,7 +344,7 @@ export class Garfield extends EventEmitter {
                             } else {
                                 this.device.writeFirmware(body, (err) => {
                                     if (err) {
-                                        Logger.error(err);
+                                        Logger.error(err.toString());
                                         respond(new WsMessageError(msg.message_type, err.toString()));
                                     } else {
                                         setTimeout(() => {

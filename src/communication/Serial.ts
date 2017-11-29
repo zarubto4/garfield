@@ -135,16 +135,30 @@ export class Serial extends EventEmitter {
 
                 let temp_connection: SerialPort = new SerialPort(port.comName, {baudRate: 115200, rtscts: true}, (connectionError: any) => {
                     if (connectionError) {
-                        Logger.error('Serial::connect - unable to open connection: ' + connectionError.toString());
+
+                        // temp_connection.close();
+                        // Logger.error('Serial::connect - unable to open connection on: ' + temp_connection.path + ', ' + connectionError.toString());
                         // this.emit('connection_error', connectionError.message);
-                    } else {
+                    } else if (temp_connection.isOpen) {
                         Logger.info('Serial::connect - port ' + temp_connection.path + ' opened');
                         opened_connections.push(temp_connection); // Keeping reference to current connection
-                        setTimeout(() => {
-                            Logger.info('Serial::connect - ping port ' + temp_connection.path);
-                            temp_connection.flush();
-                            temp_connection.write(Serial.addCrc('TK3G:ping') + '\r\n');
-                        }, 1500);
+                        try {
+                            setTimeout(() => {
+                                try {
+                                    Logger.warn('Serial::connect - ping port ' + temp_connection.path);
+                                    if (temp_connection.isOpen) {
+                                        temp_connection.flush();
+                                        temp_connection.write(Serial.addCrc('TK3G:ping') + '\r\n');
+                                    }
+                                }catch (trr) {
+                                    Logger.error('Serial::connect - setTimeout ', trr.toString());
+                                }
+                            }, 1500);
+                        }catch (exc) {
+                            Logger.error('Serial::connect - setTimeout ', exc.toString());
+                        }
+                    }else {
+                        opened_connections.push(temp_connection); // Keeping reference to current connection
                     }
                 });
 
@@ -158,6 +172,8 @@ export class Serial extends EventEmitter {
                 }
 
                 let temp_parser = temp_connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' })); // parser which emits data, when the delimiter is received
+
+                let flag_potvrzeno: boolean = false;
 
                 temp_parser.on('data', (data: any) => { // temporary listener for connecting
 
@@ -189,7 +205,14 @@ export class Serial extends EventEmitter {
                         });
 
                         this.connectionCleanUp(opened_connections);
+                        Logger.info('Serial::connect - Connection Procedure Done!');
                         this.emit('connected');
+                        flag_potvrzeno = true;
+                    }else if (!flag_potvrzeno) {
+                        Logger.error('Serial::connect - flag není potvrzen a žádám ping a posílám na ', temp_connection.path);
+                        temp_connection.write(Serial.addCrc('TK3G:ping') + '\r\n');
+                    } else {
+                        Logger.error('Serial::connect - TK3G:ping=FAIL!!!!:: ' + data);
                     }
                 });
             });
@@ -294,13 +317,13 @@ export class Serial extends EventEmitter {
     private static checkCrc(message: string): boolean {
         let crc: string = message.substring(message.lastIndexOf('#') + 1);
         message = message.substring(0, message.lastIndexOf('#'));
-        Logger.info('Serial::checkCrc - crc: ' + crc + ', message: ' + message);
+        // Logger.trace('Serial::checkCrc - crc: ' + crc + ', message: ' + message);
 
         if (crc === Serial.crc(message)) {
-            Logger.info('Serial::checkCrc - valid');
+           // Logger.trace('Serial::checkCrc - valid');
             return true;
         }
-        Logger.info('Serial::checkCrc - invalid');
+        // Logger.trace('Serial::checkCrc - invalid');
         return false;
     }
 
@@ -344,7 +367,8 @@ export class Serial extends EventEmitter {
 
         if (!message.startsWith('*')) { // Filtering out comments
             if (!Serial.checkCrc(message.trim())) { // Checking CRC checksum
-                this.emit('error', 'Data broken - CRC checksum is invalid');
+                Logger.error('Data broken - CRC checksum is invalid');
+                // this.emit('error', 'Data broken - CRC checksum is invalid');
             } else {
                 message = message.substring(0, message.lastIndexOf('#')); // Removes the CRC checksum
 
