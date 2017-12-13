@@ -6,7 +6,6 @@ const terminal: HTMLElement = <HTMLElement>document.getElementById('terminal');
 const clear: HTMLButtonElement = <HTMLButtonElement>document.getElementById('clear');
 
 terminal.addEventListener('submit', function(event) {
-
     event.preventDefault();
     let input = terminal_input.value;
     if (input) {
@@ -16,11 +15,11 @@ terminal.addEventListener('submit', function(event) {
         }
         output.value += input + '\n';
     }
-
     return false;
 });
 
-clear.addEventListener('onclick', (event) => {
+clear.addEventListener('click', (event) => {
+    event.preventDefault();
     output.value = '';
 });
 
