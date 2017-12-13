@@ -2,15 +2,10 @@
 // be executed in the renderer process for that window.
 // All of the Node.js APIs are available in this process.
 
-import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
-import { Serial } from '../communication/Serial';
-
 const request = require('request');
-const {ipcRenderer} = require('electron');
+import { ipcRenderer } from 'electron';
 
 const form: HTMLElement = document.getElementById('login');
-
-const pingBtn: HTMLElement = document.getElementById('ping');
 
 let mail: string;
 let password: string;

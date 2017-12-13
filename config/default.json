@@ -1,10 +1,10 @@
 {
-    "tyrionHost": "192.168.65.31:9000",
+    "tyrionHost": "localhost:9000",
     "tyrionSecured": false,
     "tyrionReconnectTimeout": 10000,
     "serial": {
         "baudRate" : 115200,
-        "ctsrts" : true,
+        "rtscts" : true,
         "crc" : true
     },
     "updateURL": {
@@ -14,6 +14,26 @@
     },
     "loggers": {
         "default": {
+            "level": "trace",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "websocket": {
+            "level": "debug",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "serial": {
+            "level": "debug",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "config": {
+            "level": "trace",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "test": {
             "level": "trace",
             "colors": true,
             "target": "./logs/garfield.log"

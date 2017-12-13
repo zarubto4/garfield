@@ -1,21 +1,21 @@
 import { app, session, ipcMain, nativeImage, BrowserWindow, Tray, Menu, MenuItem, Notification, autoUpdater } from 'electron';
-import { Logger, LoggerManager, LoggerLevel, LoggerFileTarget } from 'logger';
 import { ConfigManager } from './utils/ConfigManager';
-import { Serial } from './communication/Serial';
 import * as isDev from 'electron-is-dev';
 import * as drivelist from 'drivelist';
 import { Garfield } from './Garfield';
+import { Logger } from 'logger';
 import * as path from 'path';
 import * as url from 'url';
 import * as usb from 'usb';
 import * as fs from 'fs';
+import { SerialMessage } from './communication/Serial';
 
 const platform = process.platform;
 let icon;
 
 /**************************************
  *                                    *
- * Enviroment stuff                   *
+ * Environment stuff                  *
  *                                    *
  **************************************/
 
@@ -55,25 +55,95 @@ try {
  *                                    *
  **************************************/
 
-    const garfield: Garfield = new Garfield(); // Object that holds most of the garfield logic
+    let validator = {
+        type: 'object',
+        structure: {
+            tyrionHost: {
+                type: 'string'
+            },
+            tyrionSecured: {
+                type: 'boolean'
+            },
+            tyrionReconnectTimeout: {
+                type: 'number'
+            },
+            serial: {
+                type: 'object',
+                structure: {
+                    baudRate: {
+                        type: 'number'
+                    },
+                    rtscts: {
+                        type: 'boolean'
+                    },
+                    crc: {
+                        type: 'boolean'
+                    }
+                }
+            },
+            updateURL: {
+                type: 'object',
+                structure: {
+                    win: {
+                        type: 'string'
+                    },
+                    darwin: {
+                        type: 'string'
+                    },
+                    linux: {
+                        type: 'string'
+                    }
+                }
+            },
+            loggers: {
+                type: 'object',
+                of: {
+                    type: 'object',
+                    structure: {
+                        level: {
+                            type: 'string'
+                        },
+                        colors: {
+                            type: 'boolean'
+                        },
+                        target: {
+                            type: 'string'
+                        }
+                    }
+                }
+            },
+        }
+    };
+
+    // init ConfigManager - if anything fail, exit program
+    let configManager: ConfigManager = null;
+    try {
+        configManager = new ConfigManager('config/default.json', validator);
+        ConfigManager.configLoggers(configManager.get('loggers'));
+    } catch (e) {
+        Logger.error('ConfigManager init failed with', e.toString());
+        process.exit();
+    }
+
+    const garfield: Garfield = new Garfield(configManager); // Object that holds most of the garfield logic
 
     let window;
     let tray;
 
     garfield
-        .on('websocket_open', notification)
-        .on('websocket_closed', notification)
-        .on('tester_connected', () => {
+        .on(Garfield.WEBSOCKET_OPENED, notification)
+        .on(Garfield.WEBSOCKET_CLOSED, notification)
+        .on(Garfield.TESTER_CONNECTED, () => {
             notification('TestKit connected');
             renderTrayContextMenu();
         })
-        .on('tester_disconnected', () => {
+        .on(Garfield.TESTER_DISCONNECTED, () => {
             notification('TestKit disconnected');
             renderTrayContextMenu();
         })
-        .on('unauthorized', notification)
-        .on('authorized', renderTrayContextMenu)
-        .on('shutdown', () => {
+        .on(Garfield.UNAUTHORIZED, notification)
+        .on(Garfield.AUTHORIZED, renderTrayContextMenu)
+        .on(Garfield.SHUTDOWN, () => {
             notification('Logout successful');
             renderTrayContextMenu();
         });
@@ -96,12 +166,14 @@ try {
         event.returnValue = getTyrionUrl();
     });
 
-    usb.on('attach', function(device) {
-        Logger.warn('USB attached');
-        setTimeout(renderTrayContextMenu, 500);
+    ipcMain.on('terminal', (event, message) => {
+        garfield.device.sendPlain(message);
     });
 
-
+    usb.on('attach', function(device) {
+        Logger.warn('main - new USB device attached');
+        setTimeout(renderTrayContextMenu, 500);
+    });
 
 /**************************************
  *                                    *
@@ -110,13 +182,11 @@ try {
  **************************************/
 
     function checkForUpdates(): void {
-
         if (isDev) {
-            Logger.info('Running in DEV mode');
+            Logger.info('main::checkForUpdates - running in DEV mode, no updates');
             start();
         } else {
-            Logger.info('Running in PROD mode');
-            Logger.info('Check for update');
+            Logger.info('main::checkForUpdates - running in PROD mode, checking updates');
             start();
 /*
         autoUpdater
@@ -146,7 +216,7 @@ try {
 
     function start(): void {
 
-        Logger.info('main::start - start Garfield');
+        Logger.info('main::start - start garfield');
 
         tray = new Tray(icon);
         tray.setToolTip('Garfield App');
@@ -157,6 +227,8 @@ try {
         fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
             if (!err) {
                 garfield.init(data);
+            } else {
+                Logger.warn('main::start - cannot read token: ' + err.toString());
             }
         });
     }
@@ -171,18 +243,26 @@ try {
 
         if (remember) {
 
+            Logger.debug('main::login - saving token');
+
             let saveToken = () => {
                 fs.writeFile(path.join(__dirname, '../app_data/authToken'), token, (writeErr) => { // Save token
-                    Logger.error(JSON.stringify(writeErr));
+                    if (!writeErr) {
+                        Logger.debug('main::login - token saved');
+                    } else {
+                        Logger.error('main::login - ' + writeErr.toString());
+                    }
                 });
             };
 
             fs.stat(path.join(__dirname, '../app_data'), (err, stats) => { // Check dir existence
                 if (err) {
-                    Logger.error(JSON.stringify(err));
+                    Logger.warn('main::login - missing app_data dir: ' + err.toString());
                     fs.mkdir(path.join(__dirname, '../app_data'), (mkErr) => { // Create dir
                         if (!mkErr) {
                             saveToken();
+                        } else {
+                            Logger.error('main::login - cannot create app_data dir: ' + mkErr.toString());
                         }
                     });
                 } else {
@@ -194,11 +274,13 @@ try {
 
     function getTyrionUrl(): string {
 
-        Logger.info('main::getTyrionUrl: getting url');
+        Logger.debug('main::getTyrionUrl: getting url');
 
-        let host = ConfigManager.config.get<string>('tyrionHost').trim();
-        let secured = ConfigManager.config.get<boolean>('tyrionSecured');
+        let host = configManager.get<string>('tyrionHost').trim();
+        let secured = configManager.get<boolean>('tyrionSecured');
         let protocol = (secured ? 'https://' : 'http://');
+
+        Logger.trace('main::getTyrionUrl: host', host);
 
         return protocol + host;
     }
@@ -237,12 +319,15 @@ try {
 
                 fs.stat(path.join(__dirname, '../app_data/authToken'), (statErr, stats) => { // Check file existence
                     if (statErr) {
+                        Logger.warn('main::clickMenuItem - logout, file does not exist ' + statErr.toString());
                         return;
                     }
 
                     fs.unlink(path.join(__dirname, '../app_data/authToken'), (err?) => { // Delete file
                         if (err) {
-                            Logger.error(err);
+                            Logger.error('main::clickMenuItem - logout, cannot remove token ' + err);
+                        } else {
+                            Logger.info('main::clickMenuItem - logout, token deleted');
                         }
                     });
                 });
@@ -263,12 +348,33 @@ try {
                 }
                 break;
             }
+            case 'terminal': {
+                window = new BrowserWindow({show: false, height: 500, width: 800, icon: icon});
+                window.loadURL(url.format({
+                    pathname: path.join(__dirname, '../views/terminal.html'),
+                    protocol: 'file:',
+                    slashes: true
+                }));
+                garfield.device.attachTerminal((message: string) => {
+                    window.webContents.send('terminal', message);
+                });
+                window.once('ready-to-show', () => {
+                    window.show();
+                }).once('closed', () => {
+                    window = null;
+                    garfield.device.dettachTerminal();
+                });
+                break;
+            }
+            case 'reset': {
+                garfield.reset();
+                break;
+            }
             case 'quit': {
                 garfield.shutdown();
                 app.quit();
                 break;
             }
-
             default:
                 // code...
                 break;
@@ -329,11 +435,14 @@ try {
 
             if (garfield.hasTester()) {
                 template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem});
+                template.push({id: 'terminal', label: 'Terminal', type: 'normal', click: clickMenuItem});
             } else {
                 template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem, enabled: false});
+                template.push({id: 'terminal', label: 'Terminal', type: 'normal', click: clickMenuItem, enabled: false});
             }
 
             template.push({type: 'separator'});
+            template.push({id: 'reset', label: 'Reset', type: 'normal', click: clickMenuItem});
             template.push({id: 'quit', label: 'Quit', type: 'normal', click: clickMenuItem});
 
             const contextMenu = Menu.buildFromTemplate(template);

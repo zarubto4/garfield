@@ -3,7 +3,7 @@
  */
 
 import { resolve } from 'path';
-import { Logger, LoggerFileTarget, LoggerLevel, LoggerManager } from 'logger';
+import { Logger, LoggerLevel, LoggerManager } from 'logger';
 import { readFileSync } from 'fs';
 
 /**
@@ -18,13 +18,10 @@ export class ConfigManager {
      *
      **************************************/
 
-    public static config: ConfigManager;
-
     /**
      * Config loggers target, colors and level from loggersConfig
      *
      * @param loggersConfig
-     * @param loggerVorpalTarget
      */
     public static configLoggers(loggersConfig: any) {
 
@@ -33,6 +30,9 @@ export class ConfigManager {
         keys.forEach((key) => {
             let config = loggersConfig[key];
             let logger = LoggerManager.get(key);
+            if (!logger) {
+                logger = LoggerManager.add(key);
+            }
 
             logger.config.colorsEnabled = config.colors;
             let level = this.stringToLoggerLevel(config.level);
@@ -46,19 +46,8 @@ export class ConfigManager {
 
     }
 
-    public static loadConfig(path: string) {
-        // init ConfigManager - if anything fail, exit program
-        try {
-            ConfigManager.config = new ConfigManager(path, ConfigManager.validator);
-            ConfigManager.configLoggers(ConfigManager.config.get('loggers'));
-        } catch (e) {
-            Logger.error('ConfigManager init failed with', e.toString());
-            process.exit();
-        }
-    }
-
     /**
-     * Constructor needs configPath (relative to homer-core directory or absolute) and configValidator object
+     * Constructor needs configPath (relative to garfield directory or absolute) and configValidator object
      *
      * configValidator object describe structure of config
      *

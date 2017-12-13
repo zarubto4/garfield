@@ -1,5 +1,5 @@
 import { Serial, SerialMessage } from '../communication/Serial';
-import { Logger } from 'logger';
+import { LoggerClass } from 'logger';
 import { Queue } from '../utils/Queue';
 
 class Property {
@@ -18,6 +18,10 @@ class Property {
         return this.value;
     }
 
+    public toString(): string {
+        return this.key + ': ' + this.value;
+    }
+
     private key: string;
     private value: string;
     private message: SerialMessage;
@@ -25,43 +29,43 @@ class Property {
 
 export class Configurator {
 
-    public serial: Serial;
-
-    constructor(config: any, serial: Serial) {
+    constructor(config: any, serial: Serial, logger: LoggerClass) {
         this.serial = serial;
         this.config = config;
+        this.logger = logger;
     }
 
     public beginConfiguration(callback: (configurationError?: string) => void) {
         if (!this.serial) {
-
-            callback('Serial communication is not opened');
+            callback('serial port is not opened');
             return;
         }
 
-        Logger.info('Configurator::beginConfiguration - config: ' + JSON.stringify(this.config));
+        this.logger.info('Configurator::beginConfiguration - config:', this.config);
 
         // Set defaults first
-        this.serial.send(new SerialMessage('IODA', 'defaults', null, 20000)).then((response) => {
-            if (response === 'ok') {
-                this.queue = new Queue<Property>();
+        this.serial.send(new SerialMessage('IODA', 'defaults', null, 10000))
+            .then((response) => {
+                if (response === 'ok') {
+                    this.queue = new Queue<Property>();
 
-                for (const key in this.config) {
-                    if (this.config[key] !== null && this.config[key] !== undefined) {
-                        this.queue.push(new Property(key, this.config[key]));
+                    for (const key in this.config) {
+                        if (this.config.hasOwnProperty(key) && this.config[key] !== null && this.config[key] !== undefined) {
+                            this.queue.push(new Property(key, this.config[key]));
+                        }
                     }
+
+                    this.queue.push(new Property('configured', 1));
+                    this.callback = callback;
+                    this.configure();
+
+                } else {
+                    callback('failed to set defaults - canceled');
                 }
-
-                this.queue.push(new Property('configured', 1));
-                this.configurationCallback = callback;
-                this.configure();
-
-            } else {
-                callback('Failed to set defaults before configuration - canceled');
-            }
-        }, (error) => {
-            callback('Unable to set defaults before configuration - canceled, ' + error);
-        });
+            })
+            .catch((error) => {
+                callback('unable to set defaults - canceled, ' + error);
+            });
     }
 
     private send(property: Property): Promise<string> {
@@ -70,23 +74,30 @@ export class Configurator {
 
     private configure() {
         let property: Property = this.queue.getTop();
-        this.send(property).then((response: string) => {
-            if (response !== property.getValue()) {
-                this.send(property).then((res: string) => {
-                    if (res === property.getValue()) {
-                        this.continue();
-                    } else {
-                        this.endConfiguration('Failed to set property \'' + property + '\'');
-                    }
-                }, (err) => {
-                    this.endConfiguration('Unable to set protperty \'' + property + '\', ' + err);
-                });
-            } else {
-                this.continue();
-            }
-        }, (error) => {
-            this.endConfiguration('Unable to set protperty \'' + property + '\', ' + error);
-        });
+        this.logger.debug('Configurator::configure - configuring property:', property.toString());
+        this.send(property)
+            .then((response: string) => {
+                if (response !== property.getValue()) {
+                    this.logger.trace('Configurator::configure - property:', property.toString(), 'was not changed, received:', response, '- repeating');
+                    this.send(property)
+                        .then((res: string) => {
+                            if (res === property.getValue()) {
+                                this.continue();
+                            } else {
+                                this.logger.trace('Configurator::configure - property:', property.toString(), 'was not changed, received:', res, '- end configuration');
+                                this.endConfiguration('Failed to set property \'' + property.toString() + '\'');
+                            }
+                        })
+                        .catch( (error) => {
+                            this.endConfiguration('Unable to set property \'' + property.toString() + '\', ' + error);
+                        });
+                } else {
+                    this.continue();
+                }
+            })
+            .catch( (error) => {
+                this.endConfiguration('Unable to set property \'' + property.toString() + '\', ' + error);
+            });
     }
 
     private continue(): void {
@@ -100,11 +111,13 @@ export class Configurator {
 
     private endConfiguration(error?: string): void {
         this.serial.flush();
-        this.configurationCallback(error);
+        this.callback(error);
     }
 
+    private logger: LoggerClass;
+    private serial: Serial;
     private queue: Queue<Property>;
-    private configurationCallback: (configurationError?: string) => void;
+    private callback: (error?: string) => void;
 
     private config: any = {
         normal_mqtt_hostname: 'dummy_host',

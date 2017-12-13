@@ -1,7 +1,7 @@
 import { Serial, SerialMessage } from '../communication/Serial';
 import { Parsers } from '../utils/Parsers';
 import { Queue } from '../utils/Queue';
-import { Logger } from 'logger';
+import { LoggerClass } from 'logger';
 
 enum TestType {
     PinsHigh = 'Pins Up',
@@ -100,12 +100,13 @@ export class Tester {
 
     public result: TestResult;
 
-    constructor(serial: Serial) {
+    constructor(serial: Serial, logger: LoggerClass) {
         this.serial = serial;
+        this.logger = logger;
     }
 
     public beginTest(testConfig: any, callback: (errors?: string[]) => void) {
-        Logger.info('Tester::beginTest - config: ' + JSON.stringify(testConfig));
+        this.logger.info('Tester::beginTest - config: ' + JSON.stringify(testConfig));
 
         this.queue = new Queue<Test>();
 
@@ -143,11 +144,11 @@ export class Tester {
                 this.continue();
             } else {
                 this.addError(`Test '${test.getType()}' failed: no response`);
-                Logger.error(`Test '${test.getType()}' failed: no response`);
+                this.logger.error(`Test '${test.getType()}' failed: no response`);
             }
         }, (error) => {
             this.addError(`Test '${test.getType()}' failed: ${error}`);
-            Logger.error(`Test '${test.getType()}' failed - skipping: ${error}`);
+            this.logger.error(`Test '${test.getType()}' failed - skipping: ${error}`);
             this.continue();
         });
     }
@@ -239,6 +240,7 @@ export class Tester {
 
     private queue: Queue<Test>;
     private serial: Serial;
+    private logger: LoggerClass;
     private testCallback: (error?: string[]) => void;
     private testConfig: any = {
         pins: {
