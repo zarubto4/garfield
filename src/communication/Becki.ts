@@ -166,6 +166,7 @@ export class Becki extends EventEmitter {
         super();
         this.configManager = configManager;
         this.host = this.configManager.get<string>('tyrionHost').trim();
+        this.wsProtocol = this.configManager.get<boolean>('tyrionSecured') ? 'wss' : 'ws';
         this.authToken = authToken;
         this.logger = logger;
     }
@@ -191,7 +192,7 @@ export class Becki extends EventEmitter {
                         try {
                             return JSON.parse(event.data);
                         } catch (e) {
-                            console.error('Parse error: ', e);
+                            this.logger.error('Becki::connect - parse error: ', e);
                         }
                         return null;
                     })
@@ -201,11 +202,8 @@ export class Becki extends EventEmitter {
 
                 opened.subscribe(anything => {
                     this.subscribeBecki();
-                    this.setKeepAlive();
                     this.logger.info('Becki::connect - connected');
-                    this.emit(Becki.OPEN);
                 });
-                opened.subscribe(() => this.sendMessageQueue());
 
                 // Respond on ping messages
                 channelReceived
@@ -239,7 +237,9 @@ export class Becki extends EventEmitter {
                 channelReceived
                     .filter(message => message.message_type === 'subscribe_garfield')
                     .subscribe((msg) => {
-                        if (this.webSocket.readyState === WebSocket.OPEN) {
+                        this.setKeepAlive();
+                        this.emit(Becki.OPEN);
+                        if (this.webSocket.readyState === WebSocket.OPEN && !msg.hasOwnProperty('status')) {
                             this.webSocket.send(JSON.stringify({
                                 message_type: 'subscribe_garfield',
                                 message_id: msg.message_id,
@@ -247,6 +247,7 @@ export class Becki extends EventEmitter {
                                 status: 'success'
                             }));
                         }
+                        this.sendMessageQueue();
                     });
 
                 channelReceived
@@ -255,7 +256,7 @@ export class Becki extends EventEmitter {
                     .subscribe(this.webSocketErrorOccurred);
 
                 channelReceived
-                    .filter(message => message.message_type !== 'ping' && message.message_type !== 'keepalive')
+                    .filter(message => message.message_type !== 'ping' && message.message_type !== 'keepalive' && message.message_type !== 'subscribe_garfield')
                     .subscribe(message => this.emit(Becki.MESSAGE_RECEIVED, message, this.responseFunction.bind(this, message['message_id'], message['message_type']))); // All messages except ping are emitted and caught by listeners
 
                 errorOccurred
@@ -267,13 +268,15 @@ export class Becki extends EventEmitter {
                     this.webSocketErrorOccurred.next(error);
                 }
 
-                if (this.keepAlive) {
-                    clearInterval(this.keepAlive);
-                }
+                this.unsetKeepAlive();
 
                 this.logger.error('Becki::connect - reconnecting, error occurred:', error.message);
                 this.reconnectAfterTimeout();
             });
+    }
+
+    public isSubscribed(): boolean {
+        return !!this.keepAlive;
     }
 
     public subscribeBecki(): void {
@@ -293,11 +296,7 @@ export class Becki extends EventEmitter {
     public disconnect(): void {
         this.logger.info('Becki::disconnect - disconnecting');
         this.send(new IWebSocketMessage('unsubscribe_garfield'));
-
-        if (this.keepAlive) {
-            clearInterval(this.keepAlive);
-            this.keepAlive = null;
-        }
+        this.unsetKeepAlive();
 
         if (this.webSocketReconnectTimeout) {
             this.logger.trace('Becki::disconnect - clear reconnect timeout');
@@ -315,10 +314,7 @@ export class Becki extends EventEmitter {
     }
 
     protected onClose = () => {
-        if (this.keepAlive) {
-            clearInterval(this.keepAlive);
-        }
-
+        this.unsetKeepAlive();
         this.emit(Becki.CLOSE);
         this.reconnectAfterTimeout();
     }
@@ -339,9 +335,17 @@ export class Becki extends EventEmitter {
     }
 
     private setKeepAlive(): void {
+        this.unsetKeepAlive();
         this.keepAlive = setInterval(() => {
             this.send(new IWebSocketMessage('keepalive'));
         }, 5000);
+    }
+
+    private unsetKeepAlive(): void {
+        if (this.keepAlive) {
+            clearInterval(this.keepAlive);
+            this.keepAlive = null;
+        }
     }
 
     private sendMessageQueue(): void {
@@ -390,16 +394,10 @@ export class Becki extends EventEmitter {
     }
 
     protected websocketErrorShown: boolean = false;
-
     private webSocketMessageQueue: IWebSocketMessage[] = [];
-
     private webSocket: WebSocket = null;
-
     private webSocketReconnectTimeout: any = null;
-
     private token = null;
-
     private configManager: ConfigManager = null;
-
     private keepAlive = null;
 }

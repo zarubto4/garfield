@@ -1,6 +1,6 @@
 {
-    "tyrionHost": "localhost:9000",
-    "tyrionSecured": false,
+    "tyrionHost": "tyrion.stage.byzance.cz:443",
+    "tyrionSecured": true,
     "tyrionReconnectTimeout": 10000,
     "serial": {
         "baudRate" : 115200,
@@ -19,7 +19,7 @@
             "target": "./logs/garfield.log"
         },
         "websocket": {
-            "level": "debug",
+            "level": "trace",
             "colors": true,
             "target": "./logs/garfield.log"
         },

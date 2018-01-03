@@ -1,6 +1,6 @@
 {
   "name": "garfield",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Desktop Garfield application for testing and firts setup of hardware.",
   "main": "dist/main.js",
   "scripts": {

@@ -44,7 +44,7 @@ export class Device extends EventEmitter {
         this.serial.on(Serial.MESSAGE, terminal);
     };
 
-    public dettachTerminal() {
+    public detachTerminal() {
         this.serial.removeAllListeners(Serial.MESSAGE);
     };
 
@@ -70,6 +70,11 @@ export class Device extends EventEmitter {
         this.serial.resetLeds();
     }
 
+    /**
+     * Creates instance of Configurator and uploads configurations to device.
+     * @param config json with configurations
+     * @param {(error?) => void} callback when operation is finished
+     */
     public configure(config: any, callback: (error?) => void): void {
         let cb = this.occupy(callback);
         if (cb) {
@@ -90,6 +95,11 @@ export class Device extends EventEmitter {
         }
     }
 
+    /**
+     * Creates instance of Tester and performs tests based on test_config.
+     * @param test_config json to compare results with
+     * @param {(errors?: string[]) => void} callback when operation is finished
+     */
     public test(test_config: any, callback: (errors?: string[]) => void): void {
         let cb = this.occupy(callback);
         if (cb) {
@@ -98,6 +108,11 @@ export class Device extends EventEmitter {
         }
     }
 
+    /**
+     * Writes file BOOTLOAD.txt to signal that the binary will be boot loader, then upload binary.
+     * @param {Buffer} bootloader binary
+     * @param {(err) => void} callback when operation is finished
+     */
     public writeBootloader(bootloader: Buffer, callback: (err) => void) {
         let cb = this.occupy(callback);
         if (cb) {
@@ -111,6 +126,11 @@ export class Device extends EventEmitter {
         }
     }
 
+    /**
+     * Writes firmware
+     * @param {Buffer} firmware binary
+     * @param {(err) => void} callback when operation is finished
+     */
     public writeFirmware(firmware: Buffer, callback: (err) => void) {
         let cb = this.occupy(callback);
         if (cb) {
@@ -118,11 +138,25 @@ export class Device extends EventEmitter {
         }
     }
 
+    /**
+     * Writes data to the path of device.
+     * @param {string} filename string name of the file
+     * @param {Buffer} data binary
+     * @param {(err) => void} callback when operation is finished
+     */
     private writeData(filename: string, data: Buffer, callback: (err) => void) {
         Logger.trace('Device::writeData - writing file:', filename);
         fs.writeFile(this.path + '/' + filename, data, callback);
     }
 
+    /**
+     * Method will set flag signaling that the device is occupied (some process is in progress)
+     * and returns callback which will then release the device and if some error is passed,
+     * it will set the fault state (red led blinking).
+     * If the device is already occupied, method will not return any callback.
+     * @param {(error?) => void} callback to be called when operation is complete
+     * @returns {(error?) => void} callback to release the device and return result
+     */
     private occupy(callback: (error?) => void): (error?) => void {
         if (this.occupied) {
             callback('device is occupied');

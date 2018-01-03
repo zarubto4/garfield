@@ -112,7 +112,9 @@ export class SerialConnection extends EventEmitter {
         this.logger = logger;
         this.crcEnabled = options.crcEnabled;
         this.connection = new SerialPort(com, {baudRate: options.baudRate, rtscts: options.rtscts});
-        this.connection.on('open', this.onOpen);
+        this.connection
+            .on('open', this.onOpen)
+            .once('close', this.onClose);
         this.connectionTimeout = setTimeout(this.onConnectionTimeout, 8000);
     }
 
@@ -130,9 +132,11 @@ export class SerialConnection extends EventEmitter {
     }
 
     public close(): void {
-        this.connection.close((err) => {
-            this.emit(SerialConnection.CLOSED);
-        });
+        if (this.connection.isOpen) {
+            this.connection.close();
+        } else {
+            this.onClose();
+        }
     }
 
     public isOpened(): boolean {
@@ -140,7 +144,7 @@ export class SerialConnection extends EventEmitter {
     }
 
     private onOpen = () => {
-        this.logger.info('SerialConnection::onOpen - connection:', this.connection.path, 'is opened');
+        this.logger.info('SerialConnection::onOpen -', this.connection.path, 'is opened');
         this.parser = this.connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' }));
         this.parser.on('data', this.onFirstData);
 
@@ -149,6 +153,12 @@ export class SerialConnection extends EventEmitter {
             this.connection.flush();
             this.connection.write(this.addCrc('TK3G:ping') + '\r\n');
         }, 1000);
+    }
+
+    private onClose = () => {
+        this.logger.info('SerialConnection::onClose -', this.connection.path, 'is closed');
+        this.connection = null;
+        this.emit(SerialConnection.CLOSED);
     }
 
     private onConnectionTimeout = () => {
@@ -242,6 +252,10 @@ export class SerialConnection extends EventEmitter {
     private parser: SerialPort.parsers.Readline;
 }
 
+/**
+ * Class is used for serial communication with the TestKit.
+ * It handles serial connections and received messages.
+ */
 export class Serial extends EventEmitter {
 
     public static readonly OPENED = 'opened';
@@ -251,6 +265,11 @@ export class Serial extends EventEmitter {
     public static readonly CLOSED = 'closed';
     public static readonly MESSAGE = 'message';
 
+    /**
+     * Extracts the message sender from the given message.
+     * @param {string} message to inspect
+     * @returns {string} IODA or TK3G
+     */
     public static getMessageSender(message: string): string {
         if (message.match(/^\w{4}:/)) {
             return message.substring(0, message.indexOf(':'));
@@ -258,6 +277,11 @@ export class Serial extends EventEmitter {
         return undefined;
     }
 
+    /**
+     * Extract the message type from the given message.
+     * @param {string} message to inspect
+     * @returns {string} type of message
+     */
     public static getMessageType(message: string): string {
         message = message.replace('IODA:', '').replace('TK3G:', '');
         if (message.includes('=')) {
@@ -266,6 +290,11 @@ export class Serial extends EventEmitter {
         return message;
     }
 
+    /**
+     * Extracts the value from the given message.
+     * @param {string} message to inspect
+     * @returns {string} value from message
+     */
     public static getMessageValue(message: string): string {
         if (message.includes('=')) {
             return message.substring(message.indexOf('=') + 1);
@@ -285,6 +314,12 @@ export class Serial extends EventEmitter {
         this.logger.debug('Serial::constructor - baudRate:', this.baudRate, 'rtscts:', this.rtsCtsEnabled, 'crcEnabled:', this.crcEnabled);
     }
 
+    /**
+     * Opens connections on every available serial port.
+     * If connection gets opened, method will send ping to it.
+     * Event 'opened' is emitted when some device responds
+     * on the ping message and that connection is kept, others are closed.
+     */
     public connect() {
 
         this.logger.info('Serial::connect - connecting');
@@ -300,7 +335,9 @@ export class Serial extends EventEmitter {
                     let connection: SerialConnection = new SerialConnection(this.logger, port.comName, {baudRate: this.baudRate, rtscts: this.rtsCtsEnabled, crcEnabled: this.crcEnabled});
                     let onOpen = () => {
                         this.connection = connection;
-                        this.connection.on(SerialConnection.MESSAGE, this.messageResolver);
+                        this.connection
+                            .on(SerialConnection.MESSAGE, this.messageResolver)
+                            .once(SerialConnection.CLOSED, this.onConnectionClosed);
                         this.blink(5, 150);
                         this.emit(Serial.OPENED);
                     };
@@ -313,23 +350,19 @@ export class Serial extends EventEmitter {
             });
     }
 
+    /**
+     * Closes serial communication. Event 'closed' is emitted after connection is closed.
+     */
     public close() {
-
         this.logger.info('Serial::close - closing serial port');
-
-        if (this.connection.isOpened()) {
-            this.connection.close();
-            /*this.connection.close(() => {
-                this.logger.debug('Serial::close - connection closed');
-                this.connection = null;
-                this.emit(Serial.CLOSED);
-            });*/
-        } else {
-            this.connection = null;
-            this.emit(Serial.CLOSED);
-        }
+        this.connection.close();
     }
 
+    /**
+     * Used when response is needed. Sends message with attributes.
+     * @param {SerialMessage} message
+     * @returns {ThenPromise<string>}
+     */
     public send(message: SerialMessage): Promise<string> {
         return new Promise((resolve, reject) => {
             let doSend = () => {
@@ -352,15 +385,29 @@ export class Serial extends EventEmitter {
         });
     }
 
+    /**
+     * Writes plain text message to the serial port.
+     * This method does not handle message repeating, timeout and delay, etc.
+     * @param {string} message to send
+     */
     public sendPlain(message: string): void {
         this.connection.write(message);
     }
 
+    /**
+     * Sends ping to serial port, retries max three times.
+     * @returns {ThenPromise<string>} response
+     */
     public ping(): Promise<string> {
         this.logger.debug('Serial::ping - sending ping');
         return this.send(new SerialMessage('TK3G', 'ping', null, 2000, 3));
     }
 
+    /**
+     * Method blinks all LEDs on the TestKit.
+     * @param {number} count of blinks
+     * @param {number} delay between blinks
+     */
     public blink(count: number, delay: number) {
         if (count > 0) {
             this.connection.write('TK3G:leds=111111');
@@ -373,15 +420,21 @@ export class Serial extends EventEmitter {
         }
     }
 
+    /**
+     * Sets error blinking with the 6th red LED on the TestKit.
+     */
     public blinkError() {
         this.blinkErrorInterval = setInterval(() => {
-            this.ledHigh(6);
+            this.ledHigh(5);
             setTimeout(() => {
-                this.ledLow(6);
+                this.ledLow(5);
             }, 500);
         }, 1000);
     }
 
+    /**
+     * Turns off all LEDs on the TestKit.
+     */
     public resetLeds() {
         if (this.blinkErrorInterval) {
             clearInterval(this.blinkErrorInterval);
@@ -391,25 +444,39 @@ export class Serial extends EventEmitter {
         this.connection.write('TK3G:leds=' + this.leds);
     }
 
+    /**
+     * Lights up the LED based on the index.
+     * The index should be between 0 or 5 both included.
+     * @param {number} index of the LED
+     */
     public ledHigh(index: number): void {
         this.ledChange('1', index);
     }
 
+    /**
+     * Turn off the LED based on the index.
+     * The index should be between 0 or 5 both included.
+     * @param {number} index of the LED
+     */
     public ledLow(index: number): void {
         this.ledChange('0', index);
     }
 
-    public ledChange(val: string, index: number): void {
-        if (index === 0) {
-            this.leds = val + this.leds.substring(1);
-        }
-
-        if (index > 0 && index < 5) {
-            this.leds = this.leds.substring(0, index) + val + this.leds.substring(index + 1);
-        }
-
-        if (index === 5) {
-            this.leds = this.leds.substring(0, 5) + val;
+    /**
+     * Changes the state of the LED on the index.
+     * Writes LEDs to the serial port.
+     * @param {string} value of the LED
+     * @param {number} index of the LED
+     */
+    public ledChange(value: string, index: number): void {
+        if (index < 0 || index > 5) {
+            this.logger.warn('Serial::ledChange - index is out of bounds, allowed values are between 0 and 5 both included, received value:', index);
+        } else if (index === 0) {
+            this.leds = value + this.leds.substring(1);
+        } else if (index > 0 && index < 5) {
+            this.leds = this.leds.substring(0, index) + value + this.leds.substring(index + 1);
+        } else if (index === 5) {
+            this.leds = this.leds.substring(0, 5) + value;
         }
 
         this.connection.write('TK3G:leds=' + this.leds);
@@ -422,6 +489,12 @@ export class Serial extends EventEmitter {
 
     public isOpened(): boolean {
         return this.connection != null && this.connection.isOpened();
+    }
+
+    private onConnectionClosed() {
+        this.logger.info('Serial::onConnectionClosed - serial port was closed');
+        this.connection = null;
+        this.emit(Serial.CLOSED);
     }
 
     private onRepeat(message: SerialMessage) {

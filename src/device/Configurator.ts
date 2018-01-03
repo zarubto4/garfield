@@ -6,7 +6,11 @@ class Property {
 
     constructor(key: string, value: any) {
         this.key = key;
-        this.value = value.toString();
+        if (typeof value === 'boolean') {
+            this.value = value ? '1' : '0';
+        } else {
+            this.value = value.toString();
+        }
         this.message = new SerialMessage('IODA', this.key, this.value);
     }
 

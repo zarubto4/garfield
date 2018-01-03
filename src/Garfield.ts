@@ -22,10 +22,9 @@ export class Garfield extends EventEmitter {
     public static readonly SHUTDOWN = 'shutdown';
     public static readonly AUTHORIZED = 'authorized';
     public static readonly UNAUTHORIZED = 'unauthorized';
+    public static readonly NOTIFICATION = 'notification';
     public static readonly TESTER_CONNECTED = 'tester_connected';
     public static readonly TESTER_DISCONNECTED = 'tester_disconnected';
-    public static readonly WEBSOCKET_OPENED = 'websocket_opened';
-    public static readonly WEBSOCKET_CLOSED = 'websocket_closed';
 
     public device: Device;
     public person: IPerson;
@@ -56,8 +55,8 @@ export class Garfield extends EventEmitter {
             this.initializeRouter();
             this.becki = new Becki(this.configManager, token, LoggerManager.get('websocket'));
             this.becki
-                .on(Becki.OPEN, () => { this.emit(Garfield.WEBSOCKET_OPENED, 'Becki is connected.'); })
-                .on(Becki.CLOSE, () => { this.emit(Garfield.WEBSOCKET_CLOSED, 'Becki is disconnected.'); })
+                .on(Becki.OPEN, this.onBeckiConnected)
+                .on(Becki.CLOSE, () => { this.emit(Garfield.NOTIFICATION, 'Becki is disconnected.'); })
                 .on(Becki.MESSAGE_RECEIVED, this.messageResolver);
 
             this.becki.connect();
@@ -74,7 +73,7 @@ export class Garfield extends EventEmitter {
         serial
             .once(Serial.OPENED, () => {
                 this.device = new Device(drive, drive, serial);
-                this.device.on(Device.DISCONNECTED, this.onTesterDisconnected);
+                this.device.on(Device.DISCONNECTED, this.onTesterDisconnected.bind(this));
                 this.becki.send(new WsMessageTesterConnect('TK3G'));
                 // this.setDevicetDetection();
                 this.emit(Garfield.TESTER_CONNECTED);
@@ -85,11 +84,16 @@ export class Garfield extends EventEmitter {
             })
             .on(Serial.BUTTON, () => {
                 if (!this.buttonClicked) {
-                    this.buttonClicked = true;
-                    setTimeout(() => { // A little delay before the button can be clicked again
-                        this.buttonClicked = false;
-                    }, 5000);
-                    this.checkIoda();
+                    if (!this.becki.isSubscribed()) {
+                        this.emit(Garfield.NOTIFICATION, 'Becki is not subscribed, open Becki in the browser.');
+                        Logger.warn('Garfield::connectTester - need Becki subscription for this, open Becki in the browser');
+                    } else {
+                        this.buttonClicked = true;
+                        setTimeout(() => { // A little delay before the button can be clicked again
+                            this.buttonClicked = false;
+                        }, 5000);
+                        this.checkIoda();
+                    }
                 }
             });
 
@@ -179,20 +183,18 @@ export class Garfield extends EventEmitter {
         }, 5000);
     }
 
+    private onBeckiConnected = () => {
+        this.emit(Garfield.NOTIFICATION, 'Becki is connected.');
+        if (this.hasTester()) {
+            this.becki.send(new WsMessageTesterConnect('TK3G'));
+        }
+    }
+
     private onTesterDisconnected = () => {
         Logger.info('Garfield::onTesterDisconnected - tester disconnected');
         this.becki.send(new WsMessageTesterDisconnect('TK3G'));
         this.device = null;
         this.emit(Garfield.TESTER_DISCONNECTED);
-    }
-
-    private subscribeGarfield = (path: string[], request: Request): boolean => {
-        request.reply({ status: 'success' });
-        if (this.hasTester()) {
-            this.becki.send(new WsMessageTesterConnect('TK3G'));
-        }
-
-        return true;
     }
 
     private getDeviceId = (path: string[], request: Request): boolean => {
@@ -406,7 +408,6 @@ export class Garfield extends EventEmitter {
         this.router.route['device_test'] = this.testDevice;
         this.router.route['device_binary'] = this.uploadBinary;
         this.router.route['device_backup'] = this.backupDevice;
-        this.router.route['subscribe_garfield'] = this.subscribeGarfield;
     }
 
     private messageResolver = (data: any, response: (data: Object) => void) => {
