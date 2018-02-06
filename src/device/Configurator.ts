@@ -54,7 +54,7 @@ export class Configurator {
                     this.queue = new Queue<Property>();
 
                     for (const key in this.config) {
-                        if (this.config.hasOwnProperty(key) && this.config[key] !== null && this.config[key] !== undefined) {
+                        if (this.config.hasOwnProperty(key) && this.config[key] !== null && this.config[key] !== undefined && key !== 'backuptime') {
                             this.queue.push(new Property(key, this.config[key]));
                         }
                     }

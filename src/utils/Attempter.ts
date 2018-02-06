@@ -2,8 +2,8 @@
  *
  * Attempter is simple helper for repeating operations n times.
  *
- * When you call again() - it will automaticaly run action again
- * it counting tries and when attemps expired, it will call catch callback
+ * When you call again() - it will automatically run action again
+ * it counting tries and when attempts expired, it will call catch callback
  *
  */
 export class Attempter {
@@ -13,13 +13,13 @@ export class Attempter {
      *
      **************************************/
 
-    public static readonly ATTEMPS_EXPIRED = 'ATTEMPS_EXPIRED';
-    public static readonly ATTEMPTER_ATTEMP_DELAY = 1000;
+    public static readonly ATTEMPTS_EXPIRED = 'ATTEMPTS_EXPIRED';
+    public static readonly ATTEMPTER_ATTEMPT_DELAY = 1000;
 
     /**
      * Creates new attempter with max tries count.
-     * It automaticaly runs action in constructor and try it again,
-     * when you call again function. When attemps expired, again function will return false
+     * It automatically runs action in constructor and try it again,
+     * when you call again function. When attempts expired, again function will return false
      */
     constructor(tries: number, action: () => void) {
         this.action = action;
@@ -31,7 +31,7 @@ export class Attempter {
     /**
      * Run action again
      */
-    public again(delay: number = Attempter.ATTEMPTER_ATTEMP_DELAY): boolean {
+    public again(delay: number = Attempter.ATTEMPTER_ATTEMPT_DELAY): boolean {
         if (!this.action) {
             return false;
         }
@@ -51,7 +51,7 @@ export class Attempter {
 
             return true;
         } else if (this.catchCallback) {
-            this.catchCallback(Attempter.ATTEMPS_EXPIRED);
+            this.catchCallback(Attempter.ATTEMPTS_EXPIRED);
             this.catchCallback = null;
             this.action = null;
         }

@@ -10,8 +10,3 @@ editor.addEventListener('submit', function(event) {
     event.preventDefault();
     return false;
 });
-
-clear.addEventListener('click', (event) => {
-    event.preventDefault();
-    output.value = '';
-});

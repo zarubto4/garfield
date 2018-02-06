@@ -13,7 +13,7 @@ export class Parsers {
 
         let results: string[] = measurement.split(';'); // Creating an array with semicolon as delimiter
 
-        powerMeasurements = [new PowerMeasurement(PowerSource.ActivePoe), new PowerMeasurement(PowerSource.PasivePoe), new PowerMeasurement(PowerSource.External), new PowerMeasurement(PowerSource.Usb)];
+        powerMeasurements = [new PowerMeasurement(PowerSource.Usb),  new PowerMeasurement(PowerSource.External), new PowerMeasurement(PowerSource.PasivePoe), new PowerMeasurement(PowerSource.ActivePoe)];
         powerMeasurements.forEach((meas) => {
             meas.vbus = parseFloat(Serial.getMessageValue(results.shift()));
             meas.v3 = parseFloat(Serial.getMessageValue(results.shift()));

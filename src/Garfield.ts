@@ -49,7 +49,6 @@ export class Garfield extends EventEmitter {
                 'x-auth-token': token
             }
         }).then((body) => {
-            this.emit(Garfield.AUTHORIZED);
             this.person = body.person;
             this.authToken = token;
             this.initializeRouter();
@@ -60,8 +59,16 @@ export class Garfield extends EventEmitter {
                 .on(Becki.MESSAGE_RECEIVED, this.messageResolver);
 
             this.becki.connect();
+            this.emit(Garfield.AUTHORIZED);
         }).catch((error) => {
-            this.emit(Garfield.UNAUTHORIZED, 'Unauthorized, please login.');
+            Logger.error('Garfield::init - cannot retrieve person, error:', JSON.stringify(error));
+            if (error.hasOwnProperty('response')) {
+                this.emit(Garfield.UNAUTHORIZED, 'Authorization was unsuccessful, response status ' + error.response.statusCode);
+            } else if (error.hasOwnProperty('options')) {
+                this.emit(Garfield.UNAUTHORIZED, 'Unable to connect to the remote server on ' + error.options.uri);
+            } else {
+                this.emit(Garfield.UNAUTHORIZED, 'Unauthorized, please login.');
+            }
         });
     }
 
@@ -197,6 +204,12 @@ export class Garfield extends EventEmitter {
         this.emit(Garfield.TESTER_DISCONNECTED);
     }
 
+    /**
+     * Route method which retrieves full_id from the device.
+     * @param {string[]} path
+     * @param {Request} request
+     * @returns {boolean}
+     */
     private getDeviceId = (path: string[], request: Request): boolean => {
         this.device.send(new SerialMessage('TK3G', 'ioda_bootloader'))
             .then((bootloader: string) => {
@@ -232,6 +245,12 @@ export class Garfield extends EventEmitter {
         return true;
     }
 
+    /**
+     * Route method which configures the device based on the given configuration.
+     * @param {string[]} path
+     * @param {Request} request
+     * @returns {boolean}
+     */
     private configureDevice = (path: string[], request: Request): boolean => {
         let msg: WsMessageDeviceConfigure = <WsMessageDeviceConfigure> request.data;
         this.device.configure(msg.configuration, (err) => {
@@ -249,6 +268,12 @@ export class Garfield extends EventEmitter {
         return true;
     }
 
+    /**
+     * Route method which tests the device based on the given test configuration.
+     * @param {string[]} path
+     * @param {Request} request
+     * @returns {boolean}
+     */
     private testDevice = (path: string[], request: Request): boolean => {
         let msg: WsMessageDeviceTest = <WsMessageDeviceTest> request.data;
         this.device.test(msg.test_config, (errors?: string[]) => {
