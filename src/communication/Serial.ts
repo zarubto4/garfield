@@ -9,7 +9,7 @@ export class SerialMessage extends EventEmitter {
     public static readonly REPEAT = 'repeat';
     public static readonly TIMEOUT = 'timeout';
 
-    constructor(target: ('TK3G'|'IODA'), type: string, value?: string, timeout?: number, retry?: number, delay?: number) {
+    constructor(target: ('ATE'|'DUT'), type: string, value?: string, timeout?: number, retry?: number, delay?: number) {
         super();
 
         this.target = target;
@@ -91,7 +91,7 @@ export class SerialMessage extends EventEmitter {
     private resolveCallback: (response: string) => void;
     private rejectCallback: (err?: string) => void;
     private timeoutHandler: any;
-    private target: ('TK3G'|'IODA');
+    private target: ('ATE'|'DUT');
     private type: string;
     private value: string;
     private timeout: number = 10000;
@@ -400,7 +400,7 @@ export class Serial extends EventEmitter {
      */
     public ping(): Promise<string> {
         this.logger.debug('Serial::ping - sending ping');
-        return this.send(new SerialMessage('TK3G', 'ping', null, 2000, 3));
+        return this.send(new SerialMessage('ATE', 'ping', null, 2000, 3));
     }
 
     /**

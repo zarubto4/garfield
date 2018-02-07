@@ -78,7 +78,7 @@ export class Device extends EventEmitter {
     public configure(config: any, callback: (error?) => void): void {
         let cb = this.occupy(callback);
         if (cb) {
-            this.serial.send(new SerialMessage('TK3G', 'ioda_bootloader', null, 5000, 2, 5000))
+            this.serial.send(new SerialMessage('ATE', 'ioda_bootloader', null, 5000, 2, 5000))
                 .then((response) => {
                     if (response === 'ok') {
                         setTimeout(() => {

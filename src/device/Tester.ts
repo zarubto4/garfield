@@ -62,23 +62,23 @@ class Test {
         this.type = type;
         switch (type) {
             case TestType.PinsHigh: {
-                this.message = new SerialMessage('IODA', 'pins_up', null , 5000);
+                this.message = new SerialMessage('DUT', 'pins_up', null , 5000);
                 break;
             }
             case TestType.MeasureHigh: {
-                this.message = new SerialMessage('TK3G', 'meas_pins', null , 5000);
+                this.message = new SerialMessage('ATE', 'meas_pins', null , 5000);
                 break;
             }
             case TestType.PinsLow: {
-                this.message = new SerialMessage('IODA', 'pins_down', null , 5000);
+                this.message = new SerialMessage('DUT', 'pins_down', null , 5000);
                 break;
             }
             case TestType.MeasureLow: {
-                this.message = new SerialMessage('TK3G', 'meas_pins', null , 5000);
+                this.message = new SerialMessage('ATE', 'meas_pins', null , 5000);
                 break;
             }
             case TestType.MeasurePower: {
-                this.message = new SerialMessage('TK3G', 'meas_pwr', null , 20000);
+                this.message = new SerialMessage('ATE', 'meas_pwr', null , 20000);
                 break;
             }
         }

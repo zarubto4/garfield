@@ -11,7 +11,7 @@ class Property {
         } else {
             this.value = value.toString();
         }
-        this.message = new SerialMessage('IODA', this.key, this.value);
+        this.message = new SerialMessage('DUT', this.key, this.value);
     }
 
     public getMessage(): SerialMessage {
@@ -48,7 +48,7 @@ export class Configurator {
         this.logger.info('Configurator::beginConfiguration - config:', this.config);
 
         // Set defaults first
-        this.serial.send(new SerialMessage('IODA', 'defaults', null, 10000))
+        this.serial.send(new SerialMessage('DUT', 'defaults', null, 10000))
             .then((response) => {
                 if (response === 'ok') {
                     this.queue = new Queue<Property>();

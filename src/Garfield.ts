@@ -161,11 +161,11 @@ export class Garfield extends EventEmitter {
         }
         Logger.info('Garfield::checkIoda - checking connected Ioda');
         this.device.ioda_connected = true;
-        this.device.send(new SerialMessage('TK3G', 'ioda_bootloader'))
+        this.device.send(new SerialMessage('ATE', 'ioda_bootloader'))
             .then((response: string) => {
                 if (response === 'ok') {
                     Logger.debug('Garfield::checkIoda - retrieving full_id');
-                    this.device.send(new SerialMessage('IODA', 'fullid', null, 2000)).then((full_id: string) => {
+                    this.device.send(new SerialMessage('DUT', 'fullid', null, 2000)).then((full_id: string) => {
                         Logger.trace('Garfield::checkIoda - received full_id:', full_id);
                         this.becki.send(new WsMessageDeviceConnect(full_id)); // Connected device has at least bootloader
                     }, (err) => {
@@ -182,7 +182,7 @@ export class Garfield extends EventEmitter {
 
     private setDevicetDetection() {
         this.deviceDetection = setInterval(() => { // Periodically check if testKit is connected
-            this.device.send(new SerialMessage('TK3G', 'meas_pwr')).then((res) => {
+            this.device.send(new SerialMessage('ATE', 'meas_pwr')).then((res) => {
                 Logger.info(res);
             }, (err) => {
                 this.device.disconnect();
@@ -211,11 +211,11 @@ export class Garfield extends EventEmitter {
      * @returns {boolean}
      */
     private getDeviceId = (path: string[], request: Request): boolean => {
-        this.device.send(new SerialMessage('TK3G', 'ioda_bootloader'))
+        this.device.send(new SerialMessage('ATE', 'ioda_bootloader'))
             .then((bootloader: string) => {
                 if (bootloader === 'ok') {
                     Logger.debug('Garfield::getDeviceId - opened bootloader, asking for full_id');
-                    return this.device.send(new SerialMessage('IODA', 'fullid'));
+                    return this.device.send(new SerialMessage('DUT', 'fullid'));
                 } else {
                     throw new Error('Cannot switch to bootloader. got response: ' + bootloader);
                 }
@@ -294,10 +294,10 @@ export class Garfield extends EventEmitter {
     }
 
     private backupDevice = (path: string[], request: Request): boolean => {
-        this.device.send(new SerialMessage('IODA', 'firmware', 'backup', 30000))
+        this.device.send(new SerialMessage('DUT', 'firmware', 'backup', 30000))
             .then((backup: string) => {
                 if (backup === 'ok') {
-                    return this.device.send(new SerialMessage('TK3G', 'ioda_restart'));
+                    return this.device.send(new SerialMessage('ATE', 'ioda_restart'));
                 } else {
                     throw new Error('Failed to do backup, got response: ' + backup);
                 }
@@ -349,24 +349,24 @@ export class Garfield extends EventEmitter {
                         });
                     } else {
                         Logger.trace('Garfield::uploadBinary - bootloader upload finished');
-                        this.device.send(new SerialMessage('TK3G', 'ioda_bootloader', null, 7500, 2, 10000))
+                        this.device.send(new SerialMessage('ATE', 'ioda_bootloader', null, 7500, 2, 10000))
                             .then((boot_res: string) => {
                                 if (boot_res === 'ok') {
-                                    return this.device.send(new SerialMessage('IODA', 'ping', null, 2000));
+                                    return this.device.send(new SerialMessage('DUT', 'ping', null, 2000));
                                 } else {
                                     throw new Error('Cannot switch to bootloader, got response: ' + boot_res);
                                 }
                             })
                             .then((ping_res: string) => {
                                 if (ping_res === 'ok') {
-                                    return this.device.send(new SerialMessage('IODA', 'defaults'));
+                                    return this.device.send(new SerialMessage('DUT', 'defaults'));
                                 } else {
                                     throw new Error('Bootloader ping failed, got response: ' + ping_res);
                                 }
                             })
                             .then((def_res: string) => {
                                 if (def_res === 'ok') {
-                                    return this.device.send(new SerialMessage('IODA', 'configured', '1'));
+                                    return this.device.send(new SerialMessage('DUT', 'configured', '1'));
                                 } else {
                                     throw new Error('Cannot set default, got response: ' + def_res);
                                 }
