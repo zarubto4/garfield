@@ -151,7 +151,7 @@ export class SerialConnection extends EventEmitter {
         setTimeout(() => {
             this.logger.trace('SerialConnection::onOpen - ping port', this.connection.path);
             this.connection.flush();
-            this.connection.write(this.addCrc('TK3G:ping') + '\r\n');
+            this.connection.write(this.addCrc('ATE:ping') + '\r\n');
         }, 1000);
     }
 
@@ -181,7 +181,7 @@ export class SerialConnection extends EventEmitter {
 
         data = data.substring(0, data.lastIndexOf('#')); // Removes the CRC checksum
 
-        if (data === 'TK3G:ping=ok') {
+        if (data === 'ATE:ping=ok') {
             if (this.connectionTimeout) {
                 clearTimeout(this.connectionTimeout);
                 this.connectionTimeout = null;
@@ -268,10 +268,10 @@ export class Serial extends EventEmitter {
     /**
      * Extracts the message sender from the given message.
      * @param {string} message to inspect
-     * @returns {string} IODA or TK3G
+     * @returns {string} ATE or DUT
      */
     public static getMessageSender(message: string): string {
-        if (message.match(/^\w{4}:/)) {
+        if (message.match(/^\w{3}:/)) {
             return message.substring(0, message.indexOf(':'));
         }
         return undefined;
@@ -283,7 +283,7 @@ export class Serial extends EventEmitter {
      * @returns {string} type of message
      */
     public static getMessageType(message: string): string {
-        message = message.replace('IODA:', '').replace('TK3G:', '');
+        message = message.replace('DUT:', '').replace('ATE:', '');
         if (message.includes('=')) {
             return message.substring(0, message.indexOf('='));
         }
@@ -410,9 +410,9 @@ export class Serial extends EventEmitter {
      */
     public blink(count: number, delay: number) {
         if (count > 0) {
-            this.connection.write('TK3G:leds=111111');
+            this.connection.write('ATE:leds=111111');
             setTimeout(() => {
-                this.connection.write('TK3G:leds=000000');
+                this.connection.write('ATE:leds=000000');
                 setTimeout(() => {
                     this.blink(--count, delay);
                 }, delay);
@@ -441,7 +441,7 @@ export class Serial extends EventEmitter {
             this.blinkErrorInterval = null;
         }
         this.leds = '000000';
-        this.connection.write('TK3G:leds=' + this.leds);
+        this.connection.write('ATE:leds=' + this.leds);
     }
 
     /**
@@ -479,7 +479,7 @@ export class Serial extends EventEmitter {
             this.leds = this.leds.substring(0, 5) + value;
         }
 
-        this.connection.write('TK3G:leds=' + this.leds);
+        this.connection.write('ATE:leds=' + this.leds);
     }
 
     public flush() {

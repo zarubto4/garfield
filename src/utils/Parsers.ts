@@ -5,7 +5,7 @@ export class Parsers {
     public static parsePowerMeasurement(measurement): PowerMeasurement[] {
         let powerMeasurements: PowerMeasurement[] = [];
 
-        measurement = measurement.replace('TK3G:meas_pwr=', ''); // Removing the prefix of the result
+        measurement = measurement.replace('ATE:meas_pwr=', ''); // Removing the prefix of the result
 
         if (measurement.match(/;$/)) {
             measurement = measurement.substring(0, measurement.lastIndexOf(';')); // Striping off last semicolon
@@ -25,7 +25,7 @@ export class Parsers {
 
     public static parsePinMeasurement(type: PinMeasurementType, measurement: string): PinMeasurement {
         let pinMeasurement = new PinMeasurement(type);
-        measurement = measurement.replace('TK3G:meas_pins=', ''); // Removing the prefix of the result
+        measurement = measurement.replace('ATE:meas_pins=', ''); // Removing the prefix of the result
 
         let results: string[] = measurement.split(';');
 
