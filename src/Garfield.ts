@@ -276,20 +276,39 @@ export class Garfield extends EventEmitter {
      */
     private testDevice = (path: string[], request: Request): boolean => {
         let msg: WsMessageDeviceTest = <WsMessageDeviceTest> request.data;
-        this.device.test(msg.test_config, (errors?: string[]) => {
-            if (errors) {
-                Logger.error(errors);
+        this.device.send(new SerialMessage('ATE', 'ioda_restart'))
+            .then((restart) => {
+                if (restart === 'ok') {
+                    this.device.test(msg.test_config, (errors?: string[]) => {
+                        if (errors) {
+                            Logger.error(errors);
+                            request.reply({
+                                status: 'error',
+                                errors: errors
+                            });
+                        } else {
+                            request.reply({
+                                status: 'success'
+                            });
+                        }
+                    });
+                } else {
+                    throw new Error('Failed to restart before test, got response: ' + restart);
+                }
+            })
+            .catch((error) => {
+                let errString: string;
+                if (error instanceof Error) {
+                    errString = error.name + ': ' + error.message;
+                } else {
+                    errString = error;
+                }
+
                 request.reply({
                     status: 'error',
-                    errors: errors
+                    error: errString
                 });
-            } else {
-                request.reply({
-                    status: 'success'
-                });
-            }
-        });
-
+            });
         return true;
     }
 
