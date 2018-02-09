@@ -1,6 +1,6 @@
 {
-    "tyrionHost": "tyrion.stage.byzance.cz:443",
-    "tyrionSecured": true,
+    "tyrionHost": "192.168.65.31:9000",
+    "tyrionSecured": false,
     "tyrionReconnectTimeout": 10000,
     "serial": {
         "baudRate" : 115200,

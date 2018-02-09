@@ -150,7 +150,7 @@ try {
         .on('window-all-closed', (event) => {
             event.preventDefault(); // Default is app quitting
         })
-        .on('quit', () => {
+        .on('will-quit', () => {
             garfield.shutdown();
             tray.destroy();
         });
