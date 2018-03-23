@@ -183,7 +183,7 @@ export class Becki extends EventEmitter {
             .then((webSocketToken: IWebSocketToken) => {
                 this.logger.debug('Becki::connect - access token:', webSocketToken.websocket_token);
                 this.websocketErrorShown = false;
-                this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/becki/${webSocketToken.websocket_token}`);
+                this.webSocket = new WebSocket(`${this.wsProtocol}://${this.host}/websocket/portal/${webSocketToken.websocket_token}`);
                 this.webSocket.addEventListener('close', this.onClose);
                 let opened = Rx.Observable.fromEvent<void>(this.webSocket, 'open');
                 let channelReceived = Rx.Observable

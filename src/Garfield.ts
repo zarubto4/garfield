@@ -37,6 +37,8 @@ export class Garfield extends EventEmitter {
 
     public init(token: string): void {
 
+        Logger.info('Garfield::init - initiating with token:', token);
+
         rp({
             method: 'GET',
             uri: (this.configManager.get<boolean>('tyrionSecured') ? 'https://' : 'http://') +

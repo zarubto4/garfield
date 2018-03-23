@@ -7,7 +7,7 @@ import { ipcRenderer } from 'electron';
 
 const form: HTMLElement = document.getElementById('login');
 
-let mail: string;
+let email: string;
 let password: string;
 let remember: boolean;
 
@@ -15,14 +15,14 @@ form.addEventListener('submit', function(event) {
 
     event.preventDefault();
 
-    mail = (<HTMLInputElement>document.getElementById('mail')).value;
+    email = (<HTMLInputElement>document.getElementById('mail')).value;
     password = (<HTMLInputElement>document.getElementById('password')).value;
     remember = (<HTMLInputElement>document.getElementById('remember')).checked;
 
-    if (mail || password) {
+    if (email || password) {
 
         let senderBody = {
-            mail: mail,
+            email: email,
             password: password
         };
 
@@ -44,7 +44,7 @@ form.addEventListener('submit', function(event) {
                 if (response.statusCode !== 200) {
                     alert('Error: status = ' + body.code + ' response = ' + body.message);
                 } else {
-                    ipcRenderer.send(remember ? 'login_remember' : 'login', body.authToken);
+                    ipcRenderer.send(remember ? 'login_remember' : 'login', body.auth_token);
                 }
             }
         });
