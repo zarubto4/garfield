@@ -17,7 +17,7 @@ form.addEventListener('submit', function(event) {
 
     email = (<HTMLInputElement>document.getElementById('mail')).value;
     password = (<HTMLInputElement>document.getElementById('password')).value;
-    remember = (<HTMLInputElement>document.getElementById('remember')).checked;
+    remember = true;
 
     if (email || password) {
 

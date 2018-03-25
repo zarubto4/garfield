@@ -1,5 +1,6 @@
 import * as Rx from 'rxjs';
-import { LoggerClass } from 'logger';
+import { resolve } from 'path';
+import { Logger } from 'logger';
 import * as WebSocket from 'ws';
 import * as rp from 'request-promise';
 import { EventEmitter } from 'events';
@@ -152,7 +153,7 @@ export class Becki extends EventEmitter {
         });
     }
 
-    public logger: LoggerClass;
+    public logger: Logger;
 
     public host = 'localhost:9000';
 
@@ -162,7 +163,7 @@ export class Becki extends EventEmitter {
 
     public webSocketErrorOccurred: Rx.Subject<any> = new Rx.Subject<any>();
 
-    constructor(configManager: ConfigManager, authToken: string, logger: LoggerClass) {
+    constructor(configManager: ConfigManager, authToken: string, logger: Logger) {
         super();
         this.configManager = configManager;
         this.host = this.configManager.get<string>('tyrionHost').trim();

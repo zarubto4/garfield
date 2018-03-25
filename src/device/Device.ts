@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import { Logger, LoggerManager } from 'logger';
 import { Configurator } from './Configurator';
 import { Serial, SerialMessage } from '../communication/Serial';
+import * as path from 'path';
 
 export class Device extends EventEmitter {
 

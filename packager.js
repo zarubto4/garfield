@@ -1,6 +1,6 @@
 const packager = require('electron-packager');
 const winstaller = require('electron-winstaller');
-const { spawn } = require('child_process');
+const spawn = require('child_process');
 const path = require('path');
 const prompt = require('prompt');
 const wininstaller = require('electron-windows-installer');

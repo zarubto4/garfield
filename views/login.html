@@ -3,22 +3,33 @@
   <head>
     <meta charset="UTF-8">
     <title>Garfield | Login</title>
+    <link rel="stylesheet" href="login_style.css">
   </head>
   <body>
-    <p>
-      Please login with your Byzance account.
-    </p>
-    <form id="login">
-      <input id="mail" type="text" name="mail">
-      <input id="password" type="password" name="password">
-      <input type="submit" value="Log in">
-      <div>
-        <label>
-          <input id="remember" type="checkbox" name="remember">
-          Remember me
-        </label>
+
+    <div class="login">
+      <div class="login-screen">
+        <div class="app-title">
+          <img class="img" src="pictures/byzance_logo_full.png" alt="Byzance Logo">
+        </div>
       </div>
-    </form>
+    </div>
+    <div class="login-form">
+      <form id="login">
+        <div class="control-group">
+          <input type="text" class="login-field" value="" placeholder="username" id="mail" name="mail">
+          <label class="login-field-icon fui-user" for="mail"></label>
+        </div>
+
+        <div class="control-group">
+          <input type="password" class="login-field" value="" placeholder="password" id="password"  name="password">
+          <label class="login-field-icon fui-lock" for="password"></label>
+        </div>
+
+        <input class="btn btn-primary btn-large btn-block" type="submit" value="Log in">
+
+      </form>
+    </div>
   </body>
 
   <script>

@@ -11,10 +11,11 @@ import * as fs from 'fs';
 
 const platform = process.platform;
 let icon;
-
+let iconPath: string = null;
+let eNotify = null;
 /**************************************
  *                                    *
- * Environment stuff                  *
+ * Enviroment stuff                   *
  *                                    *
  **************************************/
 
@@ -35,7 +36,8 @@ try {
         }
         case 'darwin': {
             Logger.info('main - Running on Mac platform');
-            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/byzance_logo_grey.png'));
+            icon = nativeImage.createFromPath(path.join(__dirname, '../assets/iconset/icon_16x16@2x.png'));
+            iconPath = path.join(__dirname, '../assets/iconset/icon_512x512.png');
             break;
         }
         case 'linux': {
@@ -155,6 +157,9 @@ try {
             tray.destroy();
         });
 
+    // Hide icon on Mac
+    app.dock.hide();
+
     ipcMain.on('login', (event, token) => {
         login(token, false);
     });
@@ -189,7 +194,7 @@ try {
         } else {
             Logger.info('main::checkForUpdates - running in PROD mode, checking updates');
             start();
-/*
+        /*
         autoUpdater
             .once('update-not-available', () => {
                 start();
@@ -211,13 +216,14 @@ try {
                 autoUpdater.quitAndInstall();
             });
 
-             autoUpdater.checkForUpdates();*/
+             autoUpdater.checkForUpdates();
+             */
         }
     }
 
     function start(): void {
 
-        Logger.info('main::start - start garfield');
+        Logger.info('main::start - start Garfield');
 
         tray = new Tray(icon);
         tray.setToolTip('Garfield App');
@@ -225,6 +231,15 @@ try {
             tray.popUpContextMenu();
         });
         renderTrayContextMenu();
+
+        // Notify Notification Settings
+        eNotify = require('electron-notify');
+        eNotify.setConfig({
+            appIcon: iconPath,
+            displayTime: 6000
+        });
+
+        notification('Garfield has started.');
 
         fs.readFile(path.join(__dirname, '../app_data/authToken'), 'utf8', (err, data) => {
             if (!err) {
@@ -391,6 +406,9 @@ try {
     }
 
     function renderTrayContextMenu(): void {
+        Logger.info('main::renderTrayContextMenu');
+        drivelist.list((error, drives) => {
+
         if (!tray.isDestroyed()) {
             drivelist.list((error, drives) => {
 
@@ -415,8 +433,14 @@ try {
                         click: selectDrive
                     };
 
-                    submenu.push(item);
-                });
+                submenu.push(item);
+
+                if ( drive.mountpoints[0].path.indexOf('BYZG3') !== -1) {
+                    Logger.info('main::renderTrayContextMenu - shortcuts activated devixe path:: ', drive.mountpoints[0].path);
+                    garfield.connectTester(drive.mountpoints[0].path);
+                }
+
+            });
 
                 let template: any[] = [];
 
