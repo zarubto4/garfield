@@ -87,6 +87,10 @@ export class Device {
         let dir: string = path.join(this.path, filename);
         Logger.info('Device::writeDataToFlash::Data Path:: ', dir);
 
+        fs.writeFileSync(dir, data);
+        callback(null);
+
+        /*
         try {
             fs.writeFileSync(dir, data);
         }catch (excx) {
@@ -105,7 +109,7 @@ export class Device {
                 return callback(null);
             }, 15000);
         }
-
+        */
 
         // this.check(dir, callback);
     }
