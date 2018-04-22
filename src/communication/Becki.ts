@@ -1,6 +1,6 @@
 import * as Rx from 'rxjs';
 import { resolve } from 'path';
-import { Logger } from 'logger';
+import {Logger, LoggerClass, LoggerManager} from 'logger';
 import * as WebSocket from 'ws';
 import * as rp from 'request-promise';
 import { EventEmitter } from 'events';
@@ -153,7 +153,7 @@ export class Becki extends EventEmitter {
         });
     }
 
-    public logger: Logger;
+
 
     public host = 'localhost:9000';
 
@@ -163,13 +163,19 @@ export class Becki extends EventEmitter {
 
     public webSocketErrorOccurred: Rx.Subject<any> = new Rx.Subject<any>();
 
-    constructor(configManager: ConfigManager, authToken: string, logger: Logger) {
+    constructor(protected configManager: ConfigManager, authToken: string, logger: LoggerClass) {
         super();
-        this.configManager = configManager;
         this.host = this.configManager.get<string>('tyrionHost').trim();
         this.wsProtocol = this.configManager.get<boolean>('tyrionSecured') ? 'wss' : 'ws';
         this.authToken = authToken;
-        this.logger = logger;
+
+        // Set Logger
+        if (!this.logger) {
+            this.logger = LoggerManager.get('becki');
+            if (!this.logger) {
+                this.logger = Logger;
+            }
+        }
     }
 
     public connect(): void {
@@ -395,10 +401,10 @@ export class Becki extends EventEmitter {
     }
 
     protected websocketErrorShown: boolean = false;
+    private logger: LoggerClass;
     private webSocketMessageQueue: IWebSocketMessage[] = [];
     private webSocket: WebSocket = null;
     private webSocketReconnectTimeout: any = null;
     private token = null;
-    private configManager: ConfigManager = null;
     private keepAlive = null;
 }

@@ -1,7 +1,8 @@
-import { Serial, SerialMessage } from '../communication/Serial';
+import { Serial } from '../communication/serial_comp/Serial';
 import { Parsers } from '../utils/Parsers';
 import { Queue } from '../utils/Queue';
 import { LoggerClass } from 'logger';
+import { SerialMessage } from '../communication/serial_comp/SerialMessage';
 
 enum TestType {
     PinsHigh = 'Pins Up',

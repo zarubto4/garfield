@@ -3,7 +3,7 @@ import { ConfigManager } from './utils/ConfigManager';
 import * as isDev from 'electron-is-dev';
 import * as drivelist from 'drivelist';
 import { Garfield } from './Garfield';
-import { Logger } from 'logger';
+import {Logger, LoggerManager} from 'logger';
 import * as path from 'path';
 import * as url from 'url';
 import * as usb from 'usb';
@@ -126,7 +126,22 @@ try {
         process.exit();
     }
 
+    let loger_main_menu = null;
+
+    // Set Logger
+    if (!loger_main_menu) {
+        loger_main_menu = LoggerManager.get('main_menu');
+        if (!loger_main_menu) {
+            loger_main_menu = Logger;
+        }
+    }
+
     const garfield: Garfield = new Garfield(configManager); // Object that holds most of the garfield logic
+
+    // Set Callback
+    garfield.onMenuChangeCallback = (e) => {
+        renderTrayContextMenu();
+    };
 
     let window;
     let tray;
@@ -173,7 +188,16 @@ try {
     });
 
     ipcMain.on('terminal', (event, message) => {
-        garfield.device.sendPlain(message);
+        if (garfield.serialHandlerer) {
+            if (garfield.serialHandlerer.getTesterKitDevice()) {
+                garfield.serialHandlerer.getTesterKitDevice().sendPlain(message);
+            } else {
+                notification('ERROR: Test Kit is not connected');
+            }
+
+        }else {
+            notification('ERROR: garfield.serialHandlerer is null');
+        }
     });
 
     usb.on('attach', function(device) {
@@ -329,7 +353,7 @@ try {
     }
 
     function clickMenuItem(menuItem, browserWindow, event): void {
-        Logger.info('main::clickMenuItem - click on button: ', menuItem.id);
+        loger_main_menu.info('main::clickMenuItem - click on button: ', menuItem.id);
 
         switch (menuItem.id) {
             case 'login': {
@@ -340,15 +364,15 @@ try {
 
                 fs.stat(path.join(__dirname, '../app_data/authToken'), (statErr, stats) => { // Check file existence
                     if (statErr) {
-                        Logger.warn('main::clickMenuItem - logout, file does not exist ' + statErr.toString());
+                        loger_main_menu.warn('main::clickMenuItem - logout, file does not exist ' + statErr.toString());
                         return;
                     }
 
                     fs.unlink(path.join(__dirname, '../app_data/authToken'), (err?) => { // Delete file
                         if (err) {
-                            Logger.error('main::clickMenuItem - logout, cannot remove token ' + err);
+                            loger_main_menu.error('main::clickMenuItem - logout, cannot remove token ' + err);
                         } else {
-                            Logger.info('main::clickMenuItem - logout, token deleted');
+                            loger_main_menu.info('main::clickMenuItem - logout, token deleted');
                         }
                     });
                 });
@@ -361,21 +385,33 @@ try {
                 break;
             }
             case 'disconnect_tester': {
-                if (garfield.hasTester()) {
-                    garfield.disconnectTester();
+                if (garfield.serialHandlerer) {
+                    if (garfield.serialHandlerer.hasTestKit()) {
+                        garfield.serialHandlerer.disconnectTester();
+                    } else {
+                        notification('No device connected!');
+                    }
                 } else {
-                    notification('No device connected!');
+                    notification('Error: Serial Handler is null');
                 }
                 break;
             }
             case 'terminal': {
-                createWindow('terminal.html', 502, 800);
-                garfield.device.attachTerminal((message: string) => {
-                    window.webContents.send('terminal', message);
-                });
-                window.once('closed', () => {
-                    garfield.device.detachTerminal();
-                });
+                if (garfield.serialHandlerer) {
+                    if (garfield.serialHandlerer.hasTestKit()) {
+                        createWindow('terminal.html', 502, 800);
+                        garfield.serialHandlerer.getTesterKitDevice().attachTerminal((message: string) => {
+                            window.webContents.send('terminal', message);
+                        });
+                        window.once('closed', () => {
+                            if (garfield.serialHandlerer &&  garfield.serialHandlerer.getTesterKitDevice()) {
+                                garfield.serialHandlerer.getTesterKitDevice().detachTerminal();
+                            }
+                        });
+                    }
+                } else {
+                    notification('Error: Serial Handler is null');
+                }
                 break;
             }
             case 'settings': {
@@ -397,35 +433,44 @@ try {
         }
     }
 
-    /*
-        if (drive.displayName.match(/^BYZG3_\d{4}$/)) { // If name is patern 'BYZG3_dddd' where d is a number
-    */
-
     function selectDrive(menuItem, browserWindow, event): void {
-        garfield.connectTester(menuItem.id);
+        if (garfield.serialHandlerer) {
+            if (garfield.serialHandlerer.hasTestKit()) {
+                garfield.serialHandlerer.getTesterKitDevice().setPath(menuItem);
+            } else {
+                notification('No device connected!');
+            }
+        } else {
+            notification('Error: Serial Handler is null');
+        }
     }
 
     function renderTrayContextMenu(): void {
-        Logger.info('main::renderTrayContextMenu');
-        drivelist.list((error, drives) => {
-
+        loger_main_menu.info('Main::renderTrayContextMenu');
         if (!tray.isDestroyed()) {
+
+            loger_main_menu.info('Main::renderTrayContextMenu:: is NOT destroyed');
             drivelist.list((error, drives) => {
 
                 if (error) {
-                    Logger.error('main::renderTrayContextMenu -', error);
+                    loger_main_menu.error('Main::renderTrayContextMenu -', error);
                     throw error;
                 }
 
+                loger_main_menu.info('Main::renderTrayContextMenu:: ready to check all drivers');
+                loger_main_menu.info('Main::renderTrayContextMenu:: List: ', drives);
+
+                // List of Drivers for Selection
                 let submenu: any[] = [];
 
                 drives.forEach((drive) => {
 
                     if (drive.system) {
+                        loger_main_menu.info('Main::renderTrayContextMenu:: Driver: ', drive.displayName , ' is system driver. Skip. ');
                         return; // System drives will be skipped
                     }
 
-                    Logger.info('main::renderTrayContextMenu - rendering button for drive: ' + drive.displayName);
+                    loger_main_menu.info('Main::renderTrayContextMenu - rendering button for drive: ' + drive.displayName);
 
                     let item = {
                         id: drive.mountpoints[0].path,
@@ -433,14 +478,8 @@ try {
                         click: selectDrive
                     };
 
-                submenu.push(item);
-
-                if ( drive.mountpoints[0].path.indexOf('BYZG3') !== -1) {
-                    Logger.info('main::renderTrayContextMenu - shortcuts activated devixe path:: ', drive.mountpoints[0].path);
-                    garfield.connectTester(drive.mountpoints[0].path);
-                }
-
-            });
+                    submenu.push(item);
+                });
 
                 let template: any[] = [];
 
@@ -451,22 +490,27 @@ try {
                     template.push({label: 'Select drive', submenu: submenu, enabled: false});
                 } else {
                     template.push({id: 'logout', label: 'Logout', type: 'normal', click: clickMenuItem});
-                    template.push({type: 'separator'});
-                    if (garfield.hasBecki()) {
-                        template.push({id: 'reconnect_becki', label: 'Reconnect Becki', type: 'normal', click: clickMenuItem});
-                    } else {
-                        template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
-                    }
-                    template.push({label: 'Select drive', submenu: submenu});
                 }
 
-                if (garfield.hasTester()) {
+                template.push({type: 'separator'});
+                template.push({label: 'Select drive', submenu: submenu});
+
+                // Becki is connected or created
+                if (garfield.hasBecki()) {
+                    template.push({id: 'reconnect_becki', label: 'Reconnect Becki', type: 'normal', click: clickMenuItem});
+                } else {
+                    template.push({id: 'connect_becki', label: 'Connect Becki', type: 'normal', click: clickMenuItem});
+                }
+
+                // Tester Kit Is connected or Cretead
+                if (garfield.hasTestKit()) {
                     template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem});
                     template.push({id: 'terminal', label: 'Terminal', type: 'normal', click: clickMenuItem});
                 } else {
                     template.push({id: 'disconnect_tester', label: 'Disconnect TestKit', type: 'normal', click: clickMenuItem, enabled: false});
                     template.push({id: 'terminal', label: 'Terminal', type: 'normal', click: clickMenuItem, enabled: false});
                 }
+
 
                 template.push({type: 'separator'});
                 template.push({id: 'settings', label: 'Settings', type: 'normal', click: clickMenuItem});
@@ -477,9 +521,11 @@ try {
                 try {
                     tray.setContextMenu(contextMenu);
                 } catch (e) {
-                    Logger.error('main::renderTrayContextMenu - probably destroyed too soon,', e.toString());
+                    loger_main_menu.error('main::renderTrayContextMenu - probably destroyed too soon,', e.toString());
                 }
             });
+        } else {
+            loger_main_menu.info('renderTrayContextMenu:: is destroyed');
         }
     }
 
@@ -497,13 +543,15 @@ try {
         const exeName = path.basename(process.execPath);
 
         const spawn = function(command, args) {
-            let spawnedProcess, error;
+            let spawnedProcess;
 
             try {
                 spawnedProcess = ChildProcess.spawn(command, args, {
                     detached: true
                 });
-            } catch (error) {}
+            } catch (error) {
+                Logger.error('main::handleSquirrelEvent: ERROR:', error);
+            }
 
             return spawnedProcess;
         };
@@ -542,8 +590,9 @@ try {
 
                 return true;
         }
-    };
+    }
 
 } catch (e) {
     process.exit();
 }
+

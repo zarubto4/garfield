@@ -1,6 +1,7 @@
-import { Serial, SerialMessage } from '../communication/Serial';
+import { Serial } from '../communication/serial_comp/Serial';
 import { LoggerClass } from 'logger';
 import { Queue } from '../utils/Queue';
+import {SerialMessage} from '../communication/serial_comp/SerialMessage';
 
 class Property {
 

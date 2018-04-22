@@ -2,255 +2,11 @@ import { LoggerClass } from 'logger';
 import * as SerialPort from 'serialport';
 import { EventEmitter } from 'events';
 import * as Promise from 'promise';
-import { ConfigManager } from '../utils/ConfigManager';
+import { ConfigManager } from '../../utils/ConfigManager';
+import { SerialConnection } from './SerialConnection';
+import { SerialMessage } from './SerialMessage';
 
-export class SerialMessage extends EventEmitter {
 
-    public static readonly REPEAT = 'repeat';
-    public static readonly TIMEOUT = 'timeout';
-
-    constructor(target: ('ATE'|'DUT'), type: string, value?: string, timeout?: number, retry?: number, delay?: number) {
-        super();
-
-        this.target = target;
-        this.type = type;
-
-        if (value) {
-            this.value = value;
-        }
-
-        if (timeout) {
-            this.timeout = timeout;
-        }
-
-        if (retry) {
-            this.retry = retry;
-        }
-
-        if (delay) {
-            this.delay = delay;
-        }
-    }
-
-    public resolve(response: string): void {
-        clearTimeout(this.timeoutHandler);
-        if (this.resolveCallback) {
-            this.resolveCallback(response);
-        }
-    }
-
-    public reject(err?: string): void {
-        clearTimeout(this.timeoutHandler);
-        if (this.rejectCallback) {
-            this.rejectCallback(err);
-        }
-    }
-
-    public getTarget(): string {
-        return this.target;
-    }
-
-    public getType(): string {
-        return this.type;
-    }
-
-    public getValue(): string {
-        return this.value;
-    }
-
-    public getDelay(): number {
-        return this.delay;
-    }
-
-    public getMessage(): string {
-        let message: string = this.target + ':' + this.type;
-
-        if (this.value) {
-            message += '=' + this.value;
-        }
-        return message;
-    }
-
-    public setCallbacks(resolve: (response: string) => void, reject: (err?: string) => void) {
-        this.resolveCallback = resolve;
-        this.rejectCallback = reject;
-    }
-
-    public startTimeout() {
-        this.retry--;
-        this.timeoutHandler = setTimeout(() => {
-            if (this.retry > 0) {
-                this.emit(SerialMessage.REPEAT, this);
-            } else {
-                this.reject('timeout'); // TODO
-                this.emit(SerialMessage.TIMEOUT, this);
-            }
-        }, this.timeout);
-    }
-
-    private resolveCallback: (response: string) => void;
-    private rejectCallback: (err?: string) => void;
-    private timeoutHandler: any;
-    private target: ('ATE'|'DUT');
-    private type: string;
-    private value: string;
-    private timeout: number = 10000;
-    private retry: number = 3;
-    private delay: number;
-}
-
-export class SerialConnection extends EventEmitter {
-
-    public static readonly MESSAGE = 'message';
-    public static readonly DESTROY = 'destroy';
-    public static readonly OPENED = 'opened';
-    public static readonly CLOSED = 'closed';
-    public static readonly ERROR = 'error';
-
-    constructor(logger: LoggerClass, com: string, options: any) {
-        super();
-        this.logger = logger;
-        this.crcEnabled = options.crcEnabled;
-        this.connection = new SerialPort(com, {baudRate: options.baudRate, rtscts: options.rtscts});
-        this.connection
-            .on('open', this.onOpen)
-            .once('close', this.onClose);
-        this.connectionTimeout = setTimeout(this.onConnectionTimeout, 8000);
-    }
-
-    public write(message: string): void {
-        this.logger.debug('SerialConnection::write - sending message:', message);
-        if (this.connection) {
-            setTimeout(() => { // Little delay between messages, so the device better consumes it
-                this.connection.write(this.addCrc(message) + '\r\n');
-            }, 25);
-        }
-    }
-
-    public flush(): void {
-        this.connection.flush();
-    }
-
-    public close(): void {
-        if (this.connection.isOpen) {
-            this.connection.close();
-        } else {
-            this.onClose();
-        }
-    }
-
-    public isOpened(): boolean {
-        return this.connection && this.connection.isOpen;
-    }
-
-    private onOpen = () => {
-        this.logger.info('SerialConnection::onOpen -', this.connection.path, 'is opened');
-        this.parser = this.connection.pipe(new SerialPort.parsers.Readline({ delimiter: '\n' }));
-        this.parser.on('data', this.onFirstData);
-
-        setTimeout(() => {
-            this.logger.trace('SerialConnection::onOpen - ping port', this.connection.path);
-            this.connection.flush();
-            this.connection.write(this.addCrc('ATE:ping') + '\r\n');
-        }, 1000);
-    }
-
-    private onClose = () => {
-        this.logger.info('SerialConnection::onClose -', this.connection.path, 'is closed');
-        this.connection = null;
-        this.emit(SerialConnection.CLOSED);
-    }
-
-    private onConnectionTimeout = () => {
-        this.logger.info('SerialConnection::onConnectionTimeout - timeout for connection', this.connection.path);
-        if (this.connection.isOpen) {
-            this.connection.close();
-        }
-        this.emit(SerialConnection.DESTROY);
-    }
-
-    private onFirstData = (data) => {
-        data = data.trim();
-
-        this.logger.debug('SerialConnection::onFirstData - received data:', data, 'from', this.connection.path);
-
-        if (!this.checkCrc(data)) {
-            this.logger.trace('SerialConnection::onFirstData - checksum is invalid');
-            return;
-        }
-
-        data = data.substring(0, data.lastIndexOf('#')); // Removes the CRC checksum
-
-        if (data === 'ATE:ping=ok') {
-            if (this.connectionTimeout) {
-                clearTimeout(this.connectionTimeout);
-                this.connectionTimeout = null;
-            }
-            this.logger.info('SerialConnection::onFirstData - found tester on ' + this.connection.path);
-            this.parser.removeAllListeners('data');
-            this.parser.on('data', this.onData);
-            this.emit(SerialConnection.OPENED);
-        }
-    }
-
-    private onData = (data) => {
-        if (!this.checkCrc(data.trim())) { // Checking CRC checksum
-            this.emit(SerialConnection.ERROR, 'broken data, invalid crc');
-        } else {
-            let index = data.lastIndexOf('#');
-            if (index > -1) {
-                this.emit(SerialConnection.MESSAGE, data.substring(0, index));
-            } else {
-                this.emit(SerialConnection.MESSAGE, data);
-            }
-        }
-    }
-
-    private crc(message: string): string {
-        let crc: number = 0;
-        for (let i = 0; i < message.length; i++) {
-            // tslint:disable-next-line:no-bitwise
-            crc ^= message.charCodeAt(i);
-        }
-
-        let crcStr: string = crc.toString(16);
-        if (crcStr.length === 1) {
-            crcStr = '0' + crcStr;
-        }
-
-        return crcStr.toUpperCase();
-    }
-
-    private addCrc(message: string): string {
-        if (this.crcEnabled) {
-            return message + '#' + this.crc(message);
-        }
-        return message;
-    }
-
-    private checkCrc(message: string): boolean {
-        if (this.crcEnabled) {
-            let crc: string = message.substring(message.lastIndexOf('#') + 1);
-            message = message.substring(0, message.lastIndexOf('#'));
-            this.logger.trace('SerialConnection::checkCrc - crc: ' + crc + ', message: ' + message);
-
-            if (crc === this.crc(message)) {
-                this.logger.trace('SerialConnection::checkCrc - valid');
-                return true;
-            }
-            this.logger.warn('SerialConnection::checkCrc - invalid');
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    private connectionTimeout;
-    private crcEnabled: boolean;
-    private logger: LoggerClass;
-    private connection: SerialPort;
-    private parser: SerialPort.parsers.Readline;
-}
 
 /**
  * Class is used for serial communication with the TestKit.
@@ -302,9 +58,8 @@ export class Serial extends EventEmitter {
         return undefined;
     }
 
-    constructor(configManager: ConfigManager, logger: LoggerClass) {
+    constructor(protected configManager: ConfigManager, logger: LoggerClass) {
         super();
-        this.configManager = configManager;
         this.logger = logger;
 
         let config: any = this.configManager.get<any>('serial');
@@ -322,26 +77,33 @@ export class Serial extends EventEmitter {
      */
     public connect() {
 
-        this.logger.info('Serial::connect - connecting');
+        this.logger.info('Serial::connect - Auto connecting');
 
         SerialPort.list()
             .then((ports) => {
+                this.logger.info('Serial::connect - Serial Port List: ', ports);
+
                 if (ports.length === 0) {
-                    throw new Error('No device detected');
+                    this.logger.error('Serial::connect:: No device in list detected');
                 }
 
                 ports.forEach((port) => {
                     this.logger.trace('Serial::connect - Trying port:', port);
-                    let connection: SerialConnection = new SerialConnection(this.logger, port.comName, {baudRate: this.baudRate, rtscts: this.rtsCtsEnabled, crcEnabled: this.crcEnabled});
-                    let onOpen = () => {
-                        this.connection = connection;
+                    let connection: SerialConnection = new SerialConnection(port.comName, {baudRate: this.baudRate, rtscts: this.rtsCtsEnabled, crcEnabled: this.crcEnabled});
+
+                    let onOpen = (conn: SerialConnection) => {
+                        this.logger.warn('Serial: onOpenSuccesfulConnection: Cooncetion Found and opened', conn['com']);
+                        this.connection = conn;
                         this.connection
                             .on(SerialConnection.MESSAGE, this.messageResolver)
                             .once(SerialConnection.CLOSED, this.onConnectionClosed);
                         this.blink(5, 150);
-                        this.emit(Serial.OPENED);
+                        this.emit(Serial.OPENED, this);
                     };
-                    connection.on(SerialConnection.OPENED, onOpen.bind(this));
+
+                    connection.on(SerialConnection.OPENED, (con: SerialConnection) => {
+                        setImmediate(onOpen.bind(this, con));
+                    });
                 });
             })
             .catch((err) => {
@@ -349,6 +111,9 @@ export class Serial extends EventEmitter {
                 this.emit(Serial.CONNECTION_ERROR, err.message);
             });
     }
+
+
+
 
     /**
      * Closes serial communication. Event 'closed' is emitted after connection is closed.
@@ -495,6 +260,9 @@ export class Serial extends EventEmitter {
         this.logger.info('Serial::onConnectionClosed - serial port was closed');
         this.connection = null;
         this.emit(Serial.CLOSED);
+
+        this.logger.warn('Serial::onConnectionClosed - ITS TIME TO TRY RECONECTION AGAIN!');
+        this.connect();
     }
 
     private onRepeat(message: SerialMessage) {
@@ -554,10 +322,10 @@ export class Serial extends EventEmitter {
         }
     }
 
+
     private messageBuffer: SerialMessage[] = [];
     private connection: SerialConnection = null;
     private logger: LoggerClass;
-    private configManager: ConfigManager;
     private baudRate: number = 115200;
     private rtsCtsEnabled: boolean = true;
     private crcEnabled: boolean = true;

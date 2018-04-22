@@ -1,5 +1,5 @@
 import { PowerMeasurement, PowerSource, PinMeasurement, PinMeasurementType } from '../device/Tester';
-import { Serial } from '../communication/Serial';
+import { Serial } from '../communication/serial_comp/Serial';
 
 export class Parsers {
     public static parsePowerMeasurement(measurement): PowerMeasurement[] {

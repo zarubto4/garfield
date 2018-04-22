@@ -18,18 +18,38 @@
             "colors": true,
             "target": "./logs/garfield.log"
         },
+        "becki": {
+            "level": "warn",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
         "websocket": {
             "level": "trace",
             "colors": true,
             "target": "./logs/garfield.log"
         },
         "serial": {
-            "level": "debug",
+            "level": "trace",
             "colors": true,
             "target": "./logs/garfield.log"
         },
         "config": {
             "level": "trace",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "garfield_main": {
+            "level": "warn",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "tester_kit": {
+            "level": "trace",
+            "colors": true,
+            "target": "./logs/garfield.log"
+        },
+        "main_menu": {
+            "level": "warn",
             "colors": true,
             "target": "./logs/garfield.log"
         },
